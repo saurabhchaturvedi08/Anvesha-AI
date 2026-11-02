@@ -1,0 +1,19 @@
+[package]
+name = "anvesha-desktop"
+version = "0.1.0"
+description = "Anvesha local-first research platform"
+authors = ["Anvesha contributors"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = [] }
+tauri-plugin-shell = "2.0.0"
+serde = { version = "1.7", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
