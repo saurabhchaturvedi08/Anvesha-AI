@@ -38,3 +38,4 @@ data/
 # Build artifacts
 *.log
 coverage/
+apps/desktop/src-tauri

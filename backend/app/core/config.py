@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     backend_host: str = "127.0.0.1"
-    backend_port: int = 8000
+    backend_port: int = 8001
     telemetry_enabled: bool = False
     diagnostics_enabled: bool = False
 
