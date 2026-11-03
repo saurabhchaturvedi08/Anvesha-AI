@@ -17,8 +17,8 @@ venv/
 *.pyd
 
 # Rust
-/target/
-Cargo.lock
+**/target/
+apps/desktop/src-tauri/gen/schemas/
 
 # IDE
 .vscode/
@@ -38,4 +38,3 @@ data/
 # Build artifacts
 *.log
 coverage/
-apps/desktop/src-tauri
