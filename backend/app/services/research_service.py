@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
-from app.schemas import ResearchExecutionResult, ResearchPlan, ResearchPlanStep
+from app.schemas import ResearchPlan, ResearchPlanStep
 
 
 def generate_research_plan(project_id: str, title: str, objective: str, research_depth: str, preferred_sources: list[str]) -> ResearchPlan:
@@ -50,36 +49,6 @@ def generate_research_plan(project_id: str, title: str, objective: str, research
         objective=objective,
         status="planned",
         tasks=tasks,
-    )
-
-
-def execute_research_workflow(project_id: str, title: str, objective: str, preferred_sources: list[str]) -> ResearchExecutionResult:
-    context = preferred_sources or ["local notes", "public docs", "memory"]
-    source_details = [item for item in context]
-    report_lines = [
-        f"Research project: {title}",
-        f"Objective: {objective}",
-        f"Source focus: {', '.join(context)}",
-        "",
-        "Summary:",
-        "- The workflow identified the primary question and mapped the likely evidence sources.",
-        "- Local-first processing keeps the research workflow on-device and avoids unnecessary external calls.",
-        "- The brief is ready for a second pass with deeper literature review and citation checks.",
-    ]
-    report = "\n".join(report_lines)
-    summary = {
-        "status": "completed",
-        "tasks_completed": 5,
-        "source_count": len(context),
-        "confidence": "medium",
-    }
-    return ResearchExecutionResult(
-        project_id=project_id,
-        status="completed",
-        summary=summary,
-        report=report,
-        sources=len(source_details),
-        source_details=source_details,
     )
 
 

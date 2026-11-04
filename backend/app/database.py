@@ -20,7 +20,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def init_db() -> None:
-    from app.models import ProviderConfiguration, ResearchProject  # noqa: F401
+    from app.models import ProviderConfiguration, ResearchProject, ResearchSource  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

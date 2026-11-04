@@ -43,4 +43,7 @@ class ResearchExecutionResult(BaseModel):
     summary: dict[str, Any]
     report: str
     sources: int
-    source_details: list[str] = Field(default_factory=list)
+    source_details: list[dict[str, str]] = Field(default_factory=list)
+    plan: dict[str, Any] = Field(default_factory=dict)
+    search_status: str
+    model_status: str

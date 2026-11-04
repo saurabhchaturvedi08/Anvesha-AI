@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.model_client import OpenAICompatibleModel
+from app.services.search_provider import TavilySearchProvider
 
 client = TestClient(app)
 
@@ -62,4 +64,42 @@ def test_execute_research_workflow() -> None:
     body = response.json()
     assert body["status"] == "completed"
     assert body["summary"]["status"] == "completed"
-    assert body["sources"] >= 1
+    assert body["sources"] == 0
+    assert body["search_status"] == "not_configured"
+    assert body["summary"]["research_status"] == "needs_search_configuration"
+
+
+def test_execute_persists_search_sources(monkeypatch) -> None:
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+    monkeypatch.setattr(
+        TavilySearchProvider,
+        "search",
+        lambda self, query, max_results=5: [
+            {
+                "title": "Research workflow design",
+                "url": "https://example.test/research-workflow",
+                "snippet": "A source excerpt for the workflow test.",
+            }
+        ],
+    )
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", lambda self, prompt: "Finding [1] is supported by the retrieved source.")
+    create_response = client.post(
+        "/research/projects",
+        json={
+            "title": "Research workflow test",
+            "objective": "Review research workflow design.",
+            "preferred_source_types": ["web"],
+        },
+    )
+    project_id = create_response.json()["id"]
+
+    response = client.post(f"/research/projects/{project_id}/execute")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sources"] == 1
+    assert body["model_status"] == "ready"
+    assert "[1]" in body["report"]
+    persisted = client.get(f"/research/projects/{project_id}/sources")
+    assert persisted.status_code == 200
+    assert persisted.json()[0]["url"] == "https://example.test/research-workflow"

@@ -19,6 +19,24 @@ type Project = {
   preferred_source_types: string[];
 };
 
+type Plan = {
+  project_id: string;
+  title: string;
+  objective: string;
+  tasks: { id: string; title: string; description: string; estimated_minutes: number }[];
+};
+
+type Execution = {
+  project_id: string;
+  status: string;
+  summary: { source_count: number; research_status: string };
+  report: string;
+  source_details: { title: string; url: string; snippet: string }[];
+  plan: Plan;
+  search_status: string;
+  model_status: string;
+};
+
 const defaultForm = {
   title: 'AI startup market scan',
   objective: 'Analyze emerging AI startup builders in the developer tooling space.',
@@ -30,6 +48,10 @@ function App() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState(defaultForm);
+  const [activePlan, setActivePlan] = useState<Plan | null>(null);
+  const [execution, setExecution] = useState<Execution | null>(null);
+  const [workingProjectId, setWorkingProjectId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
   async function loadProviders() {
     try {
@@ -54,6 +76,46 @@ function App() {
       setProjects(data);
     } catch {
       setProjects([]);
+    }
+  }
+
+  async function generatePlan(projectId: string) {
+    setWorkingProjectId(projectId);
+    setActionError('');
+    try {
+      const response = await fetch(`http://127.0.0.1:8001/research/projects/${projectId}/plan`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Could not generate the research plan.');
+      }
+      setActivePlan((await response.json()) as Plan);
+      setExecution(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not generate the research plan.');
+    } finally {
+      setWorkingProjectId(null);
+    }
+  }
+
+  async function executeProject(projectId: string) {
+    setWorkingProjectId(projectId);
+    setActionError('');
+    try {
+      const response = await fetch(`http://127.0.0.1:8001/research/projects/${projectId}/execute`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Could not run the research workflow.');
+      }
+      const result = (await response.json()) as Execution;
+      setExecution(result);
+      setActivePlan(result.plan);
+      await loadProjects();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not run the research workflow.');
+    } finally {
+      setWorkingProjectId(null);
     }
   }
 
@@ -162,8 +224,28 @@ function App() {
             ) : (
               projects.slice(0, 3).map((project) => (
                 <div className="project-row" key={project.id}>
-                  <strong>{project.title}</strong>
-                  <small>{project.status}</small>
+                  <div className="project-info">
+                    <strong>{project.title}</strong>
+                    <small>{project.status}</small>
+                  </div>
+                  <div className="project-actions">
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={workingProjectId !== null}
+                      onClick={() => void generatePlan(project.id)}
+                    >
+                      Plan
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={workingProjectId !== null}
+                      onClick={() => void executeProject(project.id)}
+                    >
+                      {workingProjectId === project.id ? 'Running...' : 'Run'}
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -232,6 +314,51 @@ function App() {
             Create project
           </button>
         </form>
+
+        {actionError && <p className="error-message" role="alert">{actionError}</p>}
+
+        {activePlan && (
+          <section className="panel result-panel">
+            <p className="eyebrow">Research plan</p>
+            <h2>{activePlan.title}</h2>
+            <p>{activePlan.objective}</p>
+            <ol className="task-list">
+              {activePlan.tasks.map((task) => (
+                <li key={task.id}>
+                  <div>
+                    <strong>{task.title}</strong>
+                    <p>{task.description}</p>
+                  </div>
+                  <small>{task.estimated_minutes} min</small>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {execution && (
+          <section className="panel result-panel">
+            <p className="eyebrow">Execution result</p>
+            <h2>{execution.plan.title}</h2>
+            <div className="execution-status">
+              <span>Search: {execution.search_status}</span>
+              <span>Model: {execution.model_status}</span>
+              <span>Sources: {execution.summary.source_count}</span>
+            </div>
+            <pre className="report-text">{execution.report}</pre>
+            {execution.source_details.length > 0 && (
+              <div className="source-list">
+                <h3>Sources</h3>
+                {execution.source_details.map((source) => (
+                  <article className="source-item" key={source.url}>
+                    <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+                    <p>{source.snippet}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </section>
     </main>
   );
