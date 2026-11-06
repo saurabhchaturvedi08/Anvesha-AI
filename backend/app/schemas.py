@@ -49,3 +49,13 @@ class ResearchExecutionResult(BaseModel):
     claims: list[dict[str, Any]] = Field(default_factory=list)
     search_status: str
     model_status: str
+
+
+class DocumentIngestRequest(BaseModel):
+    filename: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1, max_length=2_000_000)
+
+
+class DocumentSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=500)
+    limit: int = Field(default=5, ge=1, le=20)

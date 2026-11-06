@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import datetime
+from pathlib import PurePath
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
+    Document,
+    DocumentChunk,
     ResearchCheckpoint,
     ResearchClaim,
     ResearchEvidence,
@@ -16,12 +21,22 @@ from app.models import (
     ResearchProject,
     ResearchSource,
 )
-from app.schemas import ResearchExecutionResult, ResearchPlan, ResearchProjectCreate
+from app.schemas import (
+    DocumentIngestRequest,
+    DocumentSearchRequest,
+    ResearchExecutionResult,
+    ResearchPlan,
+    ResearchProjectCreate,
+)
+from app.services.document_retrieval import OpenAICompatibleEmbedder, retrieve_project_chunks, split_into_chunks
+from app.services.model_client import OpenAICompatibleModel
 from app.services.providers import list_providers, validate_provider
 from app.services.research_graph import research_graph
 from app.services.research_service import generate_research_plan, serialize_plan
 
 router = APIRouter(prefix="/research", tags=["research"])
+
+MAX_DOCUMENT_BYTES = 2_000_000
 
 
 @router.get("/projects")
@@ -356,6 +371,168 @@ async def list_project_sources(project_id: str, db: Session = Depends(get_db)) -
         }
         for source in sources
     ]
+
+
+@router.post("/projects/{project_id}/documents", status_code=status.HTTP_201_CREATED)
+async def ingest_project_document(
+    project_id: str,
+    payload: DocumentIngestRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
+
+    filename = PurePath(payload.filename.replace("\\", "/")).name
+    if not filename or PurePath(filename).suffix.casefold() not in {".txt", ".md"}:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Only .txt and .md documents are supported")
+    content = payload.content.strip()
+    content_bytes = content.encode("utf-8")
+    if not content_bytes or len(content_bytes) > MAX_DOCUMENT_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Document content must be under 2 MB")
+
+    content_hash = hashlib.sha256(content_bytes).hexdigest()
+    existing = (
+        db.query(Document)
+        .filter(Document.project_id == project_id, Document.content_sha256 == content_hash)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This document is already in the project")
+
+    chunks = split_into_chunks(content)
+    embedder = OpenAICompatibleEmbedder()
+    embeddings: list[list[float] | None] = [None] * len(chunks)
+    embedding_status = "not_configured"
+    if embedder.model:
+        embedding_status = "ready"
+        for offset in range(0, len(chunks), 64):
+            batch, batch_status = embedder.embed(chunks[offset : offset + 64])
+            if batch is None:
+                embeddings = [None] * len(chunks)
+                embedding_status = batch_status
+                break
+            embeddings[offset : offset + len(batch)] = batch
+
+    document = Document(
+        project_id=project_id,
+        filename=filename,
+        content_sha256=content_hash,
+        content_bytes=len(content_bytes),
+    )
+    db.add(document)
+    db.flush()
+    db.add_all(
+        [
+            DocumentChunk(
+                document_id=document.id,
+                project_id=project_id,
+                ordinal=ordinal,
+                text=chunk,
+                embedding_json=json.dumps(embedding) if embedding is not None else None,
+            )
+            for ordinal, (chunk, embedding) in enumerate(zip(chunks, embeddings))
+        ]
+    )
+    db.commit()
+    db.refresh(document)
+    return {
+        "id": document.id,
+        "project_id": project_id,
+        "filename": document.filename,
+        "content_bytes": document.content_bytes,
+        "chunks_created": len(chunks),
+        "embedding_status": embedding_status,
+    }
+
+
+@router.get("/projects/{project_id}/documents")
+async def list_project_documents(project_id: str, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
+    documents = (
+        db.query(Document)
+        .filter(Document.project_id == project_id)
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": document.id,
+            "filename": document.filename,
+            "content_bytes": document.content_bytes,
+            "chunk_count": db.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).count(),
+            "created_at": document.created_at.isoformat(),
+        }
+        for document in documents
+    ]
+
+
+@router.post("/projects/{project_id}/retrieve")
+async def retrieve_project_documents(
+    project_id: str,
+    payload: DocumentSearchRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
+    retrieved = retrieve_project_chunks(db, project_id, payload.query, payload.limit)
+    return {"project_id": project_id, "query": payload.query, **retrieved}
+
+
+@router.post("/projects/{project_id}/follow-up")
+async def follow_up_research(
+    project_id: str,
+    payload: DocumentSearchRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
+
+    retrieved = retrieve_project_chunks(db, project_id, payload.query, payload.limit)
+    results = retrieved["results"]
+    sources = [
+        {
+            "index": index,
+            "document_id": row["document_id"],
+            "chunk_id": row["chunk_id"],
+            "filename": row["filename"],
+            "text": row["text"],
+        }
+        for index, row in enumerate(results, start=1)
+    ]
+    if not sources:
+        answer = "No matching local documents were found. Add a text or Markdown document, or broaden the query."
+    else:
+        context = "\n\n".join(f"[{source['index']}] {source['filename']}: {source['text']}" for source in sources)
+        prompt = (
+            "Answer the follow-up question using only the supplied local document excerpts. Cite every factual "
+            "statement with a bracketed source number such as [1]. If the excerpts do not answer the question, "
+            "say so. Do not invent facts.\n\n"
+            f"Question: {payload.query}\n\nExcerpts:\n{context}"
+        )
+        try:
+            answer = OpenAICompatibleModel().generate(prompt)
+            model_status = "ready"
+        except (httpx.HTTPError, ValueError, KeyError, IndexError):
+            answer = "Matching local excerpts were retrieved, but the configured model is unavailable.\n\n" + "\n".join(
+                f"[{source['index']}] {source['text']}" for source in sources
+            )
+            model_status = "unavailable"
+    if not sources:
+        model_status = "not_run"
+    return {
+        "project_id": project_id,
+        "query": payload.query,
+        "answer": answer,
+        "sources": sources,
+        "retrieval_mode": retrieved["retrieval_mode"],
+        "embedding_status": retrieved.get("embedding_status", "not_configured"),
+        "model_status": model_status,
+    }
 
 
 @router.get("/providers")

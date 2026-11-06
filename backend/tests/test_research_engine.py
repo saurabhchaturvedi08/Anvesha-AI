@@ -211,3 +211,63 @@ def test_failed_execution_resumes_from_saved_checkpoint(monkeypatch) -> None:
     assert resumed.json()["execution_id"] == execution_id
     assert resumed.json()["claims"][0]["status"] == "supported"
     assert invocation_count == 2
+
+
+def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
+    project = client.post(
+        "/research/projects",
+        json={"title": "Local knowledge test", "objective": "Explore local retrieval."},
+    ).json()
+    uploaded = client.post(
+        f"/research/projects/{project['id']}/documents",
+        json={
+            "filename": "notes.md",
+            "content": "SQLite FTS5 provides local full-text retrieval. Documents remain inside the project workspace.",
+        },
+    )
+    assert uploaded.status_code == 201
+    assert uploaded.json()["chunks_created"] >= 1
+
+    retrieved = client.post(
+        f"/research/projects/{project['id']}/retrieve",
+        json={"query": "SQLite full-text retrieval"},
+    )
+    assert retrieved.status_code == 200
+    assert retrieved.json()["results"][0]["filename"] == "notes.md"
+    assert "SQLite" in retrieved.json()["results"][0]["text"]
+
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", lambda self, prompt: "SQLite supports local full-text retrieval [1].")
+    follow_up = client.post(
+        f"/research/projects/{project['id']}/follow-up",
+        json={"query": "How does SQLite support local retrieval?"},
+    )
+    assert follow_up.status_code == 200
+    assert "[1]" in follow_up.json()["answer"]
+    assert follow_up.json()["sources"][0]["filename"] == "notes.md"
+
+    duplicate = client.post(
+        f"/research/projects/{project['id']}/documents",
+        json={"filename": "copy.txt", "content": "SQLite FTS5 provides local full-text retrieval. Documents remain inside the project workspace."},
+    )
+    assert duplicate.status_code == 409
+
+    unsupported = client.post(
+        f"/research/projects/{project['id']}/documents",
+        json={"filename": "notes.pdf", "content": "Unsupported file types are rejected."},
+    )
+    assert unsupported.status_code == 415
+
+    other_project = client.post(
+        "/research/projects",
+        json={"title": "Isolation test", "objective": "Ensure project scoped retrieval."},
+    ).json()
+    client.post(
+        f"/research/projects/{other_project['id']}/documents",
+        json={"filename": "private.md", "content": "Only this project has the zephyrtopic keyword."},
+    )
+    isolated = client.post(
+        f"/research/projects/{project['id']}/retrieve",
+        json={"query": "zephyrtopic"},
+    )
+    assert isolated.status_code == 200
+    assert isolated.json()["results"] == []

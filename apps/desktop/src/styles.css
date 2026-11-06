@@ -250,6 +250,84 @@ h1 {
   margin-top: 24px;
 }
 
+.knowledge-panel {
+  margin-top: 24px;
+}
+
+.knowledge-header,
+.knowledge-form {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.knowledge-header h2 {
+  margin-bottom: 0;
+}
+
+.project-select-label,
+.knowledge-form label {
+  display: grid;
+  gap: 8px;
+  color: #dfe8ff;
+  font-weight: 600;
+}
+
+.project-select-label {
+  min-width: min(100%, 280px);
+}
+
+.project-select-label select,
+.knowledge-form input {
+  min-height: 42px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  color: white;
+  padding: 9px 11px;
+}
+
+.knowledge-form input[type='file'] {
+  max-width: 100%;
+}
+
+.knowledge-form {
+  margin-top: 20px;
+}
+
+.knowledge-form label {
+  flex: 1;
+  min-width: 0;
+}
+
+.document-list {
+  margin-top: 18px;
+}
+
+.document-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.document-row strong {
+  overflow-wrap: anywhere;
+}
+
+.document-row small {
+  flex: none;
+  color: #8ea7c7;
+}
+
+.follow-up-result {
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
 .task-list {
   display: grid;
   gap: 12px;
@@ -374,6 +452,16 @@ h1 {
 
   .inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .knowledge-header,
+  .knowledge-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-select-label {
+    width: 100%;
   }
 
   .project-row,

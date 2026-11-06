@@ -46,6 +46,22 @@ type Execution = {
   model_status: string;
 };
 
+type LocalDocument = {
+  id: number;
+  filename: string;
+  content_bytes: number;
+  chunk_count: number;
+  created_at: string;
+};
+
+type FollowUpResult = {
+  answer: string;
+  retrieval_mode: string;
+  embedding_status: string;
+  model_status: string;
+  sources: { index: number; filename: string; text: string }[];
+};
+
 const defaultForm = {
   title: 'AI startup market scan',
   objective: 'Analyze emerging AI startup builders in the developer tooling space.',
@@ -62,6 +78,12 @@ function App() {
   const [workingProjectId, setWorkingProjectId] = useState<string | null>(null);
   const [resumableExecutions, setResumableExecutions] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState('');
+  const [knowledgeProjectId, setKnowledgeProjectId] = useState('');
+  const [documents, setDocuments] = useState<LocalDocument[]>([]);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [knowledgeQuery, setKnowledgeQuery] = useState('');
+  const [followUpResult, setFollowUpResult] = useState<FollowUpResult | null>(null);
+  const [knowledgeBusy, setKnowledgeBusy] = useState(false);
 
   async function loadProviders() {
     try {
@@ -84,6 +106,9 @@ function App() {
       }
       const data = (await response.json()) as Project[];
       setProjects(data);
+      setKnowledgeProjectId((current) =>
+        current && data.some((project) => project.id === current) ? current : data[0]?.id ?? '',
+      );
       const recentProjects = data.slice(0, 3);
       const histories = await Promise.all(
         recentProjects.map(async (project) => {
@@ -197,6 +222,21 @@ function App() {
     void loadProjects();
   }, []);
 
+  useEffect(() => {
+    if (!knowledgeProjectId) {
+      setDocuments([]);
+      return;
+    }
+    void fetch(`http://127.0.0.1:8001/research/projects/${knowledgeProjectId}/documents`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Could not load local documents.');
+        }
+        setDocuments((await response.json()) as LocalDocument[]);
+      })
+      .catch(() => setDocuments([]));
+  }, [knowledgeProjectId]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -209,8 +249,61 @@ function App() {
     if (response.ok) {
       const created = (await response.json()) as Project;
       setProjects((current) => [created, ...current]);
+      setKnowledgeProjectId(created.id);
       setForm({ ...defaultForm, title: '', objective: '' });
       await loadProviders();
+    }
+  }
+
+  async function uploadDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!knowledgeProjectId || !documentFile) {
+      setActionError('Choose a project and a text or Markdown file first.');
+      return;
+    }
+    setKnowledgeBusy(true);
+    setActionError('');
+    try {
+      const response = await fetch(`http://127.0.0.1:8001/research/projects/${knowledgeProjectId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: documentFile.name, content: await documentFile.text() }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { detail?: string };
+        throw new Error(body.detail ?? 'Could not add the document.');
+      }
+      setDocumentFile(null);
+      const input = document.getElementById('knowledge-file') as HTMLInputElement | null;
+      if (input) input.value = '';
+      const documentsResponse = await fetch(`http://127.0.0.1:8001/research/projects/${knowledgeProjectId}/documents`);
+      setDocuments((await documentsResponse.json()) as LocalDocument[]);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not add the document.');
+    } finally {
+      setKnowledgeBusy(false);
+    }
+  }
+
+  async function submitFollowUp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!knowledgeProjectId || !knowledgeQuery.trim()) return;
+    setKnowledgeBusy(true);
+    setActionError('');
+    try {
+      const response = await fetch(`http://127.0.0.1:8001/research/projects/${knowledgeProjectId}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: knowledgeQuery }),
+      });
+      if (!response.ok) {
+        throw new Error('Could not answer the follow-up question.');
+      }
+      setFollowUpResult((await response.json()) as FollowUpResult);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not answer the follow-up question.');
+    } finally {
+      setKnowledgeBusy(false);
     }
   }
 
@@ -396,6 +489,90 @@ function App() {
             Create project
           </button>
         </form>
+
+        <section className="panel knowledge-panel">
+          <div className="knowledge-header">
+            <div>
+              <p className="eyebrow">Local knowledge</p>
+              <h2>Documents and follow-up</h2>
+            </div>
+            <label className="project-select-label">
+              Project
+              <select
+                value={knowledgeProjectId}
+                onChange={(event) => {
+                  setKnowledgeProjectId(event.target.value);
+                  setFollowUpResult(null);
+                }}
+                disabled={projects.length === 0}
+              >
+                {projects.length === 0 ? <option value="">No project</option> : null}
+                {projects.map((project) => (
+                  <option value={project.id} key={project.id}>{project.title}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <form className="knowledge-form" onSubmit={uploadDocument}>
+            <label>
+              Add text or Markdown
+              <input
+                id="knowledge-file"
+                type="file"
+                accept=".txt,.md,text/plain,text/markdown"
+                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                disabled={!knowledgeProjectId || knowledgeBusy}
+              />
+            </label>
+            <button className="secondary" type="submit" disabled={!documentFile || knowledgeBusy}>
+              Add document
+            </button>
+          </form>
+
+          <div className="document-list">
+            {documents.length === 0 ? (
+              <p>No local documents in this project.</p>
+            ) : documents.map((item) => (
+              <div className="document-row" key={item.id}>
+                <strong>{item.filename}</strong>
+                <small>{item.chunk_count} chunks</small>
+              </div>
+            ))}
+          </div>
+
+          <form className="knowledge-form follow-up-form" onSubmit={submitFollowUp}>
+            <label>
+              Ask about this project's documents
+              <input
+                value={knowledgeQuery}
+                onChange={(event) => setKnowledgeQuery(event.target.value)}
+                placeholder="What do the notes say about local search?"
+                disabled={!knowledgeProjectId || knowledgeBusy}
+              />
+            </label>
+            <button className="primary" type="submit" disabled={!knowledgeProjectId || !knowledgeQuery.trim() || knowledgeBusy}>
+              {knowledgeBusy ? 'Working...' : 'Ask'}
+            </button>
+          </form>
+
+          {followUpResult && (
+            <div className="follow-up-result">
+              <div className="execution-status">
+                <span>Retrieval: {followUpResult.retrieval_mode}</span>
+                <span>Embeddings: {followUpResult.embedding_status}</span>
+                <span>Model: {followUpResult.model_status}</span>
+              </div>
+              <pre className="report-text">{followUpResult.answer}</pre>
+              {followUpResult.sources.map((source) => (
+                <article className="source-item" key={source.index}>
+                  <strong>[{source.index}] {source.filename}</strong>
+                  <p>{source.text}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         {actionError && <p className="error-message" role="alert">{actionError}</p>}
 
