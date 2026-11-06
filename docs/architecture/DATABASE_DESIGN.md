@@ -38,6 +38,8 @@
 
 A research project owns sessions, tasks, sources, evidence, and final reports. Each source can support multiple evidence records, while claims are linked to supporting and contradicting evidence.
 
+Each execution stores its status, current resume node, serialized state, and node-level checkpoints. Claims are scoped to an execution, and evidence records link a verified quote to both its claim and source. A claim is marked supported only when its quoted text matches the cited source snippet; unsupported claims remain visible without creating evidence records.
+
 ## Migration guidance
 
 Alembic migrations should remain backward-conscious. When schema changes are introduced, app code must support safe upgrades and cleanup of orphaned artifacts.

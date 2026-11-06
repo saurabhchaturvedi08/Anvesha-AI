@@ -28,10 +28,19 @@ type Plan = {
 
 type Execution = {
   project_id: string;
+  execution_id: string;
   status: string;
-  summary: { source_count: number; research_status: string };
+  summary: { source_count: number; research_status: string; verified_claim_count: number };
   report: string;
   source_details: { title: string; url: string; snippet: string }[];
+  claims: {
+    id: number;
+    statement: string;
+    status: string;
+    verification_note: string;
+    source_url?: string | null;
+    evidence_id?: number | null;
+  }[];
   plan: Plan;
   search_status: string;
   model_status: string;
@@ -51,6 +60,7 @@ function App() {
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
   const [execution, setExecution] = useState<Execution | null>(null);
   const [workingProjectId, setWorkingProjectId] = useState<string | null>(null);
+  const [resumableExecutions, setResumableExecutions] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState('');
 
   async function loadProviders() {
@@ -74,8 +84,34 @@ function App() {
       }
       const data = (await response.json()) as Project[];
       setProjects(data);
+      const recentProjects = data.slice(0, 3);
+      const histories = await Promise.all(
+        recentProjects.map(async (project) => {
+          try {
+            const historyResponse = await fetch(
+              `http://127.0.0.1:8001/research/projects/${project.id}/executions`,
+            );
+            if (!historyResponse.ok) {
+              return { projectId: project.id, resumableId: null };
+            }
+            const runs = (await historyResponse.json()) as { id: string; status: string }[];
+            const resumable = runs.find((run) => run.status === 'failed' || run.status === 'running');
+            return { projectId: project.id, resumableId: resumable?.id ?? null };
+          } catch {
+            return { projectId: project.id, resumableId: null };
+          }
+        }),
+      );
+      setResumableExecutions(
+        Object.fromEntries(
+          histories
+            .filter((history): history is { projectId: string; resumableId: string } => history.resumableId !== null)
+            .map((history) => [history.projectId, history.resumableId]),
+        ),
+      );
     } catch {
       setProjects([]);
+      setResumableExecutions({});
     }
   }
 
@@ -106,14 +142,51 @@ function App() {
         method: 'POST',
       });
       if (!response.ok) {
+        const errorBody = (await response.json()) as { detail?: { execution_id?: string } };
+        const executionId = errorBody.detail?.execution_id;
+        if (executionId) {
+          setResumableExecutions((current) => ({ ...current, [projectId]: executionId }));
+        }
         throw new Error('Could not run the research workflow.');
       }
       const result = (await response.json()) as Execution;
       setExecution(result);
       setActivePlan(result.plan);
+      setResumableExecutions((current) => {
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
       await loadProjects();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Could not run the research workflow.');
+    } finally {
+      setWorkingProjectId(null);
+    }
+  }
+
+  async function resumeProject(projectId: string, executionId: string) {
+    setWorkingProjectId(projectId);
+    setActionError('');
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8001/research/projects/${projectId}/executions/${executionId}/resume`,
+        { method: 'POST' },
+      );
+      if (!response.ok) {
+        throw new Error('Could not resume the saved research execution.');
+      }
+      const result = (await response.json()) as Execution;
+      setExecution(result);
+      setActivePlan(result.plan);
+      setResumableExecutions((current) => {
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
+      await loadProjects();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not resume the saved research execution.');
     } finally {
       setWorkingProjectId(null);
     }
@@ -168,17 +241,16 @@ function App() {
 
         <div className="grid">
           <article className="panel hero">
-            <h2>Phase 1: research foundation</h2>
+            <h2>Phase 3: evidence-backed research</h2>
             <p>
-              The desktop shell is connected to the local backend, and the first
-              research workflow is now in place with provider awareness and project
-              creation.
+              Research runs are checkpointed, source quotes are verified against
+              their citations, and incomplete runs can resume from the last saved step.
             </p>
             <ul>
-              <li>Local-first backend and project models</li>
-              <li>Provider registration and validation</li>
-              <li>Structured research planning</li>
-              <li>Desktop-ready workflow controls</li>
+              <li>Supervised, conditional research workflow</li>
+              <li>Persisted claims with linked source evidence</li>
+              <li>Quote-level support verification</li>
+              <li>Checkpoint recovery for interrupted runs</li>
             </ul>
           </article>
 
@@ -245,6 +317,16 @@ function App() {
                     >
                       {workingProjectId === project.id ? 'Running...' : 'Run'}
                     </button>
+                    {resumableExecutions[project.id] && (
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={workingProjectId !== null}
+                        onClick={() => void resumeProject(project.id, resumableExecutions[project.id])}
+                      >
+                        Resume
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -344,8 +426,24 @@ function App() {
               <span>Search: {execution.search_status}</span>
               <span>Model: {execution.model_status}</span>
               <span>Sources: {execution.summary.source_count}</span>
+              <span>Verified claims: {execution.summary.verified_claim_count}</span>
             </div>
             <pre className="report-text">{execution.report}</pre>
+            {execution.claims.length > 0 && (
+              <div className="claim-list">
+                <h3>Claim verification</h3>
+                {execution.claims.map((claim) => (
+                  <article className="claim-item" key={claim.id}>
+                    <div className="claim-heading">
+                      <strong>{claim.statement}</strong>
+                      <span className={`badge ${claim.status}`}>{claim.status}</span>
+                    </div>
+                    <p>{claim.verification_note}</p>
+                    {claim.evidence_id && <small>Evidence record {claim.evidence_id}</small>}
+                  </article>
+                ))}
+              </div>
+            )}
             {execution.source_details.length > 0 && (
               <div className="source-list">
                 <h3>Sources</h3>

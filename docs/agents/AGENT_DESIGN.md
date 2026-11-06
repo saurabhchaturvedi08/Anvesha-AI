@@ -49,6 +49,8 @@ The workflow is a bounded, stateful LangGraph graph with explicit transitions:
 9. Regenerate or expand research if evidence is insufficient
 10. Generate and persist report
 
+The current single-project graph implements planning, search, structured claim extraction, literal source-snippet verification, and reporting as bounded stages. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state.
+
 ## State design
 
 The graph state stores the research identity, user request, config, research plan, tasks, execution status, claims, evidence, report metadata, and budget counters. Larger artifacts live outside the graph and are referenced by IDs.

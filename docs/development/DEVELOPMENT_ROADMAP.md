@@ -49,6 +49,14 @@ Establish working local development foundations for the desktop app and backend.
 - Claim verification
 - Conditional branching and resume behavior
 
+### Implemented foundation
+
+- A supervised LangGraph workflow checkpoints each completed stage
+- Structured claims are verified against exact source-snippet quotes before being marked supported
+- Supported claims persist as evidence linked to both the source and execution
+- Runs with no sources or no supported claims branch to explicit incomplete reports
+- Failed or interrupted runs can resume from their most recent saved next-node state
+
 ## Phase 4 – Knowledge and evidence
 
 - Documents

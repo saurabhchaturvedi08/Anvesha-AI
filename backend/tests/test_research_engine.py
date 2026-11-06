@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.routers import research as research_routes
 from app.main import app
 from app.services.model_client import OpenAICompatibleModel
 from app.services.search_provider import TavilySearchProvider
@@ -82,7 +83,11 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
             }
         ],
     )
-    monkeypatch.setattr(OpenAICompatibleModel, "generate", lambda self, prompt: "Finding [1] is supported by the retrieved source.")
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: '[{"statement":"The source describes a research workflow","quote":"A source excerpt for the workflow test.","source_index":1}]',
+    )
     create_response = client.post(
         "/research/projects",
         json={
@@ -99,7 +104,110 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
     body = response.json()
     assert body["sources"] == 1
     assert body["model_status"] == "ready"
-    assert "[1]" in body["report"]
+    assert body["claims"][0]["status"] == "supported"
+    assert "Research workflow design" in body["report"]
     persisted = client.get(f"/research/projects/{project_id}/sources")
     assert persisted.status_code == 200
     assert persisted.json()[0]["url"] == "https://example.test/research-workflow"
+    claims = client.get(f"/research/projects/{project_id}/claims").json()
+    evidence = client.get(f"/research/projects/{project_id}/evidence").json()
+    assert claims[0]["status"] == "supported"
+    assert evidence[0]["claim_id"] == claims[0]["id"]
+    assert evidence[0]["source_id"] == persisted.json()[0]["id"]
+    history = client.get(f"/research/projects/{project_id}/executions").json()
+    assert history[0]["id"] == body["execution_id"]
+    assert history[0]["checkpoint_count"] >= 5
+
+
+def test_unsupported_claim_is_not_persisted_as_evidence(monkeypatch) -> None:
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+    monkeypatch.setattr(
+        TavilySearchProvider,
+        "search",
+        lambda self, query, max_results=5: [
+            {
+                "title": "Evidence source",
+                "url": "https://example.test/evidence",
+                "snippet": "The source does not contain the claimed wording.",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: '[{"statement":"Unsupported claim","quote":"This quote was invented.","source_index":1}]',
+    )
+    created = client.post(
+        "/research/projects",
+        json={"title": "Verification test", "objective": "Test evidence verification.", "preferred_source_types": ["web"]},
+    )
+    project_id = created.json()["id"]
+
+    response = client.post(f"/research/projects/{project_id}/execute")
+
+    assert response.status_code == 200
+    assert response.json()["claims"][0]["status"] == "unsupported"
+    assert response.json()["summary"]["verified_claim_count"] == 0
+    assert client.get(f"/research/projects/{project_id}/evidence").json() == []
+    assert "No claims passed source-quote verification" in response.json()["report"]
+
+
+def test_failed_execution_resumes_from_saved_checkpoint(monkeypatch) -> None:
+    created = client.post(
+        "/research/projects",
+        json={"title": "Resume test", "objective": "Verify execution recovery."},
+    )
+    project_id = created.json()["id"]
+    original_invoke = research_routes.research_graph.invoke
+    invocation_count = 0
+
+    def fail_once(state, config=None):
+        nonlocal invocation_count
+        invocation_count += 1
+        if invocation_count == 1:
+            config["configurable"]["checkpoint_callback"](
+                "verify",
+                {
+                    **state,
+                    "plan": {"project_id": project_id, "title": "Resume test", "objective": "Verify execution recovery.", "tasks": []},
+                    "sources": [
+                        {
+                            "title": "Recovery source",
+                            "url": "https://example.test/recovery",
+                            "snippet": "Recovery evidence is persisted before report generation.",
+                        }
+                    ],
+                    "claims": [
+                        {
+                            "statement": "Recovery evidence is persisted before report generation.",
+                            "quote": "Recovery evidence is persisted before report generation.",
+                            "source_index": 1,
+                            "status": "supported",
+                            "source_url": "https://example.test/recovery",
+                            "verification_note": "Exact quote match.",
+                        }
+                    ],
+                    "search_status": "ready",
+                    "model_status": "ready",
+                    "research_status": "evidence_available",
+                    "resume_from": "report",
+                },
+            )
+            raise RuntimeError("temporary failure")
+        return original_invoke(state, config=config)
+
+    monkeypatch.setattr(research_routes.research_graph, "invoke", fail_once)
+    failed = client.post(f"/research/projects/{project_id}/execute")
+    assert failed.status_code == 500
+    execution_id = failed.json()["detail"]["execution_id"]
+
+    history = client.get(f"/research/projects/{project_id}/executions").json()
+    assert history[0]["status"] == "failed"
+    assert history[0]["current_node"] == "report"
+
+    resumed = client.post(f"/research/projects/{project_id}/executions/{execution_id}/resume")
+
+    assert resumed.status_code == 200
+    assert resumed.json()["execution_id"] == execution_id
+    assert resumed.json()["claims"][0]["status"] == "supported"
+    assert invocation_count == 2

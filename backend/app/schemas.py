@@ -39,11 +39,13 @@ class ResearchPlan(BaseModel):
 
 class ResearchExecutionResult(BaseModel):
     project_id: str
+    execution_id: str
     status: str
     summary: dict[str, Any]
     report: str
     sources: int
     source_details: list[dict[str, str]] = Field(default_factory=list)
     plan: dict[str, Any] = Field(default_factory=dict)
+    claims: list[dict[str, Any]] = Field(default_factory=list)
     search_status: str
     model_status: str
