@@ -62,6 +62,31 @@ type FollowUpResult = {
   sources: { index: number; filename: string; text: string }[];
 };
 
+type StoredClaim = {
+  id: number;
+  execution_id: string;
+  statement: string;
+  status: string;
+  verification_note: string;
+};
+
+type StoredEvidence = {
+  id: number;
+  execution_id: string;
+  claim_id: number;
+  source_id: number;
+  quote: string;
+  relation: string;
+};
+
+type StoredSource = {
+  id: number;
+  title: string;
+  url: string;
+  snippet: string;
+  provider: string;
+};
+
 const defaultForm = {
   title: 'AI startup market scan',
   objective: 'Analyze emerging AI startup builders in the developer tooling space.',
@@ -84,6 +109,11 @@ function App() {
   const [knowledgeQuery, setKnowledgeQuery] = useState('');
   const [followUpResult, setFollowUpResult] = useState<FollowUpResult | null>(null);
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
+  const [storedClaims, setStoredClaims] = useState<StoredClaim[]>([]);
+  const [storedEvidence, setStoredEvidence] = useState<StoredEvidence[]>([]);
+  const [storedSources, setStoredSources] = useState<StoredSource[]>([]);
+  const [evidenceQuery, setEvidenceQuery] = useState('');
+  const [evidenceStatus, setEvidenceStatus] = useState('all');
 
   async function loadProviders() {
     try {
@@ -177,6 +207,7 @@ function App() {
       const result = (await response.json()) as Execution;
       setExecution(result);
       setActivePlan(result.plan);
+      setKnowledgeProjectId(projectId);
       setResumableExecutions((current) => {
         const next = { ...current };
         delete next[projectId];
@@ -204,6 +235,7 @@ function App() {
       const result = (await response.json()) as Execution;
       setExecution(result);
       setActivePlan(result.plan);
+      setKnowledgeProjectId(projectId);
       setResumableExecutions((current) => {
         const next = { ...current };
         delete next[projectId];
@@ -225,17 +257,94 @@ function App() {
   useEffect(() => {
     if (!knowledgeProjectId) {
       setDocuments([]);
+      setStoredClaims([]);
+      setStoredEvidence([]);
+      setStoredSources([]);
       return;
     }
-    void fetch(`http://127.0.0.1:8001/research/projects/${knowledgeProjectId}/documents`)
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error('Could not load local documents.');
+    const projectUrl = `http://127.0.0.1:8001/research/projects/${knowledgeProjectId}`;
+    void Promise.all([
+      fetch(`${projectUrl}/documents`),
+      fetch(`${projectUrl}/claims`),
+      fetch(`${projectUrl}/evidence`),
+      fetch(`${projectUrl}/sources`),
+    ])
+      .then(async ([documentsResponse, claimsResponse, evidenceResponse, sourcesResponse]) => {
+        if (![documentsResponse, claimsResponse, evidenceResponse, sourcesResponse].every((response) => response.ok)) {
+          throw new Error('Could not load project research records.');
         }
-        setDocuments((await response.json()) as LocalDocument[]);
+        const [projectDocuments, claims, evidence, sources] = await Promise.all([
+          documentsResponse.json() as Promise<LocalDocument[]>,
+          claimsResponse.json() as Promise<StoredClaim[]>,
+          evidenceResponse.json() as Promise<StoredEvidence[]>,
+          sourcesResponse.json() as Promise<StoredSource[]>,
+        ]);
+        setDocuments(projectDocuments);
+        setStoredClaims(claims);
+        setStoredEvidence(evidence);
+        setStoredSources(sources);
       })
-      .catch(() => setDocuments([]));
+      .catch(() => {
+        setDocuments([]);
+        setStoredClaims([]);
+        setStoredEvidence([]);
+        setStoredSources([]);
+      });
   }, [knowledgeProjectId]);
+
+  function downloadFile(filename: string, content: string, contentType: string) {
+    const blobUrl = URL.createObjectURL(new Blob([content], { type: contentType }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  function exportReport() {
+    if (!execution) return;
+    const projectTitle = projects.find((project) => project.id === execution.project_id)?.title ?? 'research';
+    const claims = execution.claims.map((claim) => {
+      const evidence = storedEvidence.find((item) => item.claim_id === claim.id);
+      return `## ${claim.statement}\n\nStatus: ${claim.status}\n\n${claim.verification_note}${evidence ? `\n\n> ${evidence.quote}` : ''}`;
+    });
+    const sources = execution.source_details.map((source) => `- [${source.title}](${source.url})\n  ${source.snippet}`);
+    const markdown = [
+      `# ${execution.plan.title}`,
+      '',
+      `Execution: ${execution.execution_id}`,
+      '',
+      execution.report,
+      '',
+      '# Claim verification',
+      '',
+      ...claims,
+      '',
+      '# Sources',
+      '',
+      ...sources,
+    ].join('\n');
+    downloadFile(`${projectTitle.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-research.md`, markdown, 'text/markdown');
+  }
+
+  function exportEvidenceBundle() {
+    const project = projects.find((item) => item.id === knowledgeProjectId);
+    const bundle = {
+      project: project ? { id: project.id, title: project.title, objective: project.objective } : null,
+      claims: storedClaims,
+      evidence: storedEvidence,
+      sources: storedSources,
+      exported_at: new Date().toISOString(),
+    };
+    const name = (project?.title ?? 'research').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+    downloadFile(`${name}-evidence.json`, JSON.stringify(bundle, null, 2), 'application/json');
+  }
+
+  const visibleClaims = storedClaims.filter((claim) => {
+    const matchesStatus = evidenceStatus === 'all' || claim.status === evidenceStatus;
+    const matchesQuery = `${claim.statement} ${claim.verification_note}`.toLowerCase().includes(evidenceQuery.toLowerCase());
+    return matchesStatus && matchesQuery;
+  });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -312,18 +421,15 @@ function App() {
       <aside className="sidebar">
         <div className="brand">Anvesha</div>
         <nav>
-          <a href="#">Home</a>
-          <a href="#">New Research</a>
-          <a href="#">Research Workspace</a>
-          <a href="#">Research History</a>
-          <a href="#">Knowledge Library</a>
-          <a href="#">Agents</a>
-          <a href="#">Integrations</a>
-          <a href="#">Settings</a>
+          <a href="#home">Home</a>
+          <a href="#new-research">New Research</a>
+          <a href="#research-workspace">Research Workspace</a>
+          <a href="#research-history">Research History</a>
+          <a href="#knowledge-library">Knowledge Library</a>
         </nav>
       </aside>
 
-      <section className="content">
+      <section className="content" id="home">
         <header className="topbar">
           <div>
             <p className="eyebrow">Open-source research platform</p>
@@ -364,8 +470,8 @@ function App() {
           </article>
         </div>
 
-        <div className="cards provider-grid">
-          <article className="panel">
+        <div className="cards provider-grid" id="research-history">
+          <article className="panel" id="integrations">
             <h3>Configured providers</h3>
             {providers.length === 0 ? (
               <p>Backend unavailable; provider status will load once the server is running.</p>
@@ -434,7 +540,7 @@ function App() {
           </article>
         </div>
 
-        <form className="panel form-panel" onSubmit={handleSubmit}>
+        <form className="panel form-panel" id="new-research" onSubmit={handleSubmit}>
           <h3>Create a research project</h3>
           <label>
             Title
@@ -490,7 +596,7 @@ function App() {
           </button>
         </form>
 
-        <section className="panel knowledge-panel">
+        <section className="panel knowledge-panel" id="knowledge-library">
           <div className="knowledge-header">
             <div>
               <p className="eyebrow">Local knowledge</p>
@@ -597,8 +703,13 @@ function App() {
 
         {execution && (
           <section className="panel result-panel">
-            <p className="eyebrow">Execution result</p>
-            <h2>{execution.plan.title}</h2>
+            <div className="result-heading">
+              <div>
+                <p className="eyebrow">Execution result</p>
+                <h2>{execution.plan.title}</h2>
+              </div>
+              <button className="secondary" type="button" onClick={exportReport}>Export Markdown</button>
+            </div>
             <div className="execution-status">
               <span>Search: {execution.search_status}</span>
               <span>Model: {execution.model_status}</span>
@@ -634,6 +745,61 @@ function App() {
             )}
           </section>
         )}
+
+        <section className="evidence-workspace" id="research-workspace" aria-labelledby="evidence-title">
+          <div className="evidence-toolbar">
+            <div>
+              <p className="eyebrow">Research workspace</p>
+              <h2 id="evidence-title">Evidence explorer</h2>
+            </div>
+            <div className="evidence-controls">
+              <input
+                aria-label="Filter claims"
+                value={evidenceQuery}
+                onChange={(event) => setEvidenceQuery(event.target.value)}
+                placeholder="Filter claims"
+              />
+              <select aria-label="Filter by verification status" value={evidenceStatus} onChange={(event) => setEvidenceStatus(event.target.value)}>
+                <option value="all">All statuses</option>
+                <option value="supported">Supported</option>
+                <option value="unsupported">Unsupported</option>
+                <option value="unverified">Unverified</option>
+              </select>
+              <button className="secondary" type="button" onClick={exportEvidenceBundle} disabled={!knowledgeProjectId}>
+                Export evidence JSON
+              </button>
+            </div>
+          </div>
+          {!knowledgeProjectId ? (
+            <p>Select a project to inspect its evidence.</p>
+          ) : visibleClaims.length === 0 ? (
+            <p>No claims match this project and filter.</p>
+          ) : (
+            <div className="evidence-list">
+              {visibleClaims.map((claim) => {
+                const claimEvidence = storedEvidence.filter((item) => item.claim_id === claim.id);
+                return (
+                  <article className="evidence-item" key={claim.id}>
+                    <div className="claim-heading">
+                      <strong>{claim.statement}</strong>
+                      <span className={`badge ${claim.status}`}>{claim.status}</span>
+                    </div>
+                    <p>{claim.verification_note}</p>
+                    {claimEvidence.length > 0 ? claimEvidence.map((item) => {
+                      const source = storedSources.find((candidate) => candidate.id === item.source_id);
+                      return (
+                        <blockquote key={item.id}>
+                          <p>“{item.quote}”</p>
+                          {source && <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>}
+                        </blockquote>
+                      );
+                    }) : <small>No persisted supporting quote.</small>}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );

@@ -67,6 +67,14 @@ nav a:hover {
   background: rgba(96, 165, 250, 0.12);
 }
 
+nav a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
 .content {
   flex: 1;
   padding: 28px;
@@ -248,6 +256,68 @@ h1 {
 
 .result-panel {
   margin-top: 24px;
+}
+
+.result-heading,
+.evidence-toolbar,
+.evidence-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.result-heading h2,
+.evidence-toolbar h2 {
+  margin-bottom: 0;
+}
+
+.evidence-workspace {
+  margin-top: 28px;
+  padding: 22px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.evidence-controls input,
+.evidence-controls select {
+  min-height: 40px;
+  min-width: 150px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  background: #111827;
+  color: #ebf0ff;
+  padding: 8px 10px;
+}
+
+.evidence-list {
+  margin-top: 18px;
+}
+
+.evidence-item {
+  padding: 16px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.evidence-item > p {
+  margin: 8px 0;
+  color: #aebed4;
+}
+
+.evidence-item blockquote {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid #e8a546;
+  background: rgba(232, 165, 70, 0.08);
+}
+
+.evidence-item blockquote p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.evidence-item blockquote a {
+  color: #9cc8ff;
+  overflow-wrap: anywhere;
 }
 
 .knowledge-panel {
@@ -455,9 +525,17 @@ h1 {
   }
 
   .knowledge-header,
-  .knowledge-form {
+  .knowledge-form,
+  .result-heading,
+  .evidence-toolbar,
+  .evidence-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .evidence-controls input,
+  .evidence-controls select {
+    width: 100%;
   }
 
   .project-select-label {

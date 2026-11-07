@@ -78,6 +78,13 @@ Establish working local development foundations for the desktop app and backend.
 - Export flows
 - Packaging and installers
 
+### Implemented foundation
+
+- Project-scoped evidence explorer with claim status and source quote filtering
+- Markdown research report and JSON evidence bundle exports
+- Functional in-page navigation for research, workspace, history, and local knowledge
+- Keyboard-visible focus states for interactive controls
+
 ## Phase 7 – Open-source launch
 
 - Release docs
