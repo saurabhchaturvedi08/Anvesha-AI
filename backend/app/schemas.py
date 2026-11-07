@@ -51,6 +51,11 @@ class ResearchExecutionResult(BaseModel):
     model_status: str
 
 
+class ResearchExecutionRequest(BaseModel):
+    budget_limit: int | None = Field(default=None, ge=1)
+    job_label: str | None = Field(default=None, max_length=255)
+
+
 class DocumentIngestRequest(BaseModel):
     filename: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., min_length=1, max_length=2_000_000)

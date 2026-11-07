@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -35,6 +35,7 @@ def init_db() -> None:
     )  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_execution_columns()
     global _fts5_available
     try:
         with engine.begin() as connection:
@@ -62,6 +63,24 @@ def init_db() -> None:
         if "fts5" not in str(exc).casefold():
             raise
         _fts5_available = False
+
+
+def _ensure_execution_columns() -> None:
+    inspector = inspect(engine)
+    if "research_executions" not in inspector.get_table_names():
+        return
+    existing_columns = {column["name"] for column in inspector.get_columns("research_executions")}
+    migrations = {
+        "budget_limit": "ALTER TABLE research_executions ADD COLUMN budget_limit INTEGER",
+        "budget_used": "ALTER TABLE research_executions ADD COLUMN budget_used INTEGER NOT NULL DEFAULT 0",
+        "job_status": "ALTER TABLE research_executions ADD COLUMN job_status VARCHAR(40) NOT NULL DEFAULT 'queued'",
+        "job_id": "ALTER TABLE research_executions ADD COLUMN job_id VARCHAR(64)",
+        "metrics_json": "ALTER TABLE research_executions ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}'",
+    }
+    with engine.begin() as connection:
+        for column_name, ddl in migrations.items():
+            if column_name not in existing_columns:
+                connection.execute(text(ddl))
 
 
 def is_fts5_available() -> bool:

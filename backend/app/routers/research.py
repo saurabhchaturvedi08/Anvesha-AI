@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime
 from pathlib import PurePath
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,7 @@ from app.models import (
 from app.schemas import (
     DocumentIngestRequest,
     DocumentSearchRequest,
+    ResearchExecutionRequest,
     ResearchExecutionResult,
     ResearchPlan,
     ResearchProjectCreate,
@@ -37,6 +39,13 @@ from app.services.research_service import generate_research_plan, serialize_plan
 router = APIRouter(prefix="/research", tags=["research"])
 
 MAX_DOCUMENT_BYTES = 2_000_000
+
+
+def _calculate_budget_usage(result: dict[str, Any], persisted_claims: list[dict[str, Any]]) -> int:
+    tasks = result.get("plan", {}).get("tasks", []) if isinstance(result.get("plan"), dict) else []
+    source_count = len(result.get("sources", []))
+    claim_count = len(persisted_claims)
+    return source_count + len(tasks) + (claim_count * 2)
 
 
 @router.get("/projects")
@@ -106,6 +115,14 @@ def _persist_execution_result(
     project.report = result["report"]
     project.status = "completed"
 
+    budget_limit = execution.budget_limit
+    budget_used = _calculate_budget_usage(result, [])
+
+    if budget_limit is not None:
+        budget_used = _calculate_budget_usage(result, [])
+    else:
+        budget_used = 0
+
     source_rows: list[ResearchSource] = []
     source_ids: list[int] = []
     for source in result.get("sources", []):
@@ -169,23 +186,54 @@ def _persist_execution_result(
             }
         )
 
+    budget_used = _calculate_budget_usage(result, persisted_claims)
+    execution.budget_used = budget_used
+    execution.metrics_json = json.dumps(
+        {
+            "source_count": len(result.get("sources", [])),
+            "claim_count": len(persisted_claims),
+            "task_count": len(result.get("plan", {}).get("tasks", [])) if isinstance(result.get("plan"), dict) else 0,
+            "budget_limit": budget_limit,
+            "budget_used": budget_used,
+            "job_status": execution.job_status,
+        },
+        ensure_ascii=False,
+    )
+
+    if budget_limit is not None and budget_used > budget_limit:
+        execution.job_status = "budget_exceeded"
+        project.status = "blocked"
+        execution.error = "Budget limit exceeded during execution."
+        if result.get("report"):
+            result["report"] = f"{result['report']}\n\nBudget note: the execution exceeded the configured limit of {budget_limit}."
+        project.report = result["report"]
+    else:
+        execution.job_status = "completed"
+
     execution.status = "completed"
     execution.current_node = "__end__"
     execution.state_json = json.dumps(result, ensure_ascii=False)
     execution.completed_at = datetime.utcnow()
+
+    budget_status = "exceeded" if budget_limit is not None and budget_used > budget_limit else "within_limit"
+    summary = {
+        "status": project.status,
+        "tasks_completed": len(result.get("plan", {}).get("tasks", [])) if isinstance(result.get("plan"), dict) else 0,
+        "source_count": len(result.get("sources", [])),
+        "claim_count": len(persisted_claims),
+        "verified_claim_count": sum(claim["status"] == "supported" for claim in persisted_claims),
+        "research_status": result.get("research_status", "insufficient_evidence"),
+        "budget_limit": budget_limit,
+        "budget_used": budget_used,
+        "budget_status": budget_status,
+        "job_status": execution.job_status,
+    }
     db.commit()
     return ResearchExecutionResult(
         project_id=project.id,
         execution_id=execution.id,
         status=project.status,
-        summary={
-            "status": project.status,
-            "tasks_completed": len(result.get("plan", {}).get("tasks", [])),
-            "source_count": len(result.get("sources", [])),
-            "claim_count": len(persisted_claims),
-            "verified_claim_count": sum(claim["status"] == "supported" for claim in persisted_claims),
-            "research_status": result.get("research_status", "insufficient_evidence"),
-        },
+        summary=summary,
         report=result["report"],
         sources=len(result.get("sources", [])),
         source_details=result.get("sources", []),
@@ -205,17 +253,21 @@ def _run_execution(
     def save_checkpoint(node: str, checkpoint_state: dict[str, Any]) -> None:
         execution.current_node = checkpoint_state.get("resume_from", "__end__")
         execution.state_json = json.dumps(checkpoint_state, ensure_ascii=False)
+        execution.job_status = "running"
         execution.status = "running"
         db.add(ResearchCheckpoint(execution_id=execution.id, node=node, state_json=execution.state_json))
         db.commit()
 
     try:
+        execution.job_status = "running"
+        execution.job_id = execution.job_id or f"job-{execution.id}"
         result = research_graph.invoke(
             state,
             config={"configurable": {"checkpoint_callback": save_checkpoint}},
         )
     except Exception as exc:
         execution.status = "failed"
+        execution.job_status = "failed"
         execution.error = f"{exc.__class__.__name__}: {exc}"[:2000]
         db.commit()
         raise HTTPException(
@@ -227,10 +279,16 @@ def _run_execution(
 
 
 @router.post("/projects/{project_id}/execute")
-async def execute_project(project_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+async def execute_project_with_budget(
+    project_id: str,
+    payload: ResearchExecutionRequest | None = None,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
+
+    budget_limit = payload.budget_limit if payload is not None else None
 
     initial_state = {
         "project_id": project.id,
@@ -244,12 +302,18 @@ async def execute_project(project_id: str, db: Session = Depends(get_db)) -> dic
         status="running",
         current_node="plan",
         state_json=json.dumps(initial_state, ensure_ascii=False),
+        budget_limit=budget_limit,
+        budget_used=0,
+        job_status="queued",
+        job_id=f"job-{uuid4().hex[:12]}",
     )
     db.add(execution)
     db.commit()
     db.refresh(execution)
+    execution.job_id = execution.job_id or f"job-{execution.id}"
     initial_state["execution_id"] = execution.id
     execution.state_json = json.dumps(initial_state, ensure_ascii=False)
+    execution.job_status = "running"
     db.commit()
     return _run_execution(project, execution, initial_state, db)
 
@@ -300,6 +364,10 @@ async def list_project_executions(project_id: str, db: Session = Depends(get_db)
             "checkpoint_count": db.query(ResearchCheckpoint)
             .filter(ResearchCheckpoint.execution_id == execution.id)
             .count(),
+            "job_status": execution.job_status,
+            "job_id": execution.job_id,
+            "budget_limit": execution.budget_limit,
+            "budget_used": execution.budget_used,
             "error": execution.error,
             "started_at": execution.started_at.isoformat(),
             "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,

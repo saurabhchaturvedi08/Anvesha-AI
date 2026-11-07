@@ -271,3 +271,45 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     )
     assert isolated.status_code == 200
     assert isolated.json()["results"] == []
+
+
+def test_execution_records_budget_status_and_job_metadata(monkeypatch) -> None:
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+    monkeypatch.setattr(
+        TavilySearchProvider,
+        "search",
+        lambda self, query, max_results=5: [
+            {
+                "title": "Budgeted source",
+                "url": "https://example.test/budgeted",
+                "snippet": "The budgeted source states the planned run is subject to an explicit limit.",
+            },
+            {
+                "title": "Second budgeted source",
+                "url": "https://example.test/budgeted-2",
+                "snippet": "The second source confirms the same budgeted data point.",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: '[{"statement":"A budgeted claim exists.","quote":"The budgeted source states the planned run is subject to an explicit limit.","source_index":1},{"statement":"The second claim confirms the same point.","quote":"The second source confirms the same budgeted data point.","source_index":2}]',
+    )
+
+    created = client.post(
+        "/research/projects",
+        json={"title": "Budget guard", "objective": "Ensure production execution tracks budget ceilings.", "preferred_source_types": ["web"]},
+    )
+    project_id = created.json()["id"]
+
+    response = client.post(f"/research/projects/{project_id}/execute", json={"budget_limit": 1})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["budget_status"] == "exceeded"
+    assert body["summary"]["budget_limit"] == 1
+
+    history = client.get(f"/research/projects/{project_id}/executions").json()
+    assert history[0]["job_status"] == "budget_exceeded"
+    assert history[0]["budget_limit"] == 1
