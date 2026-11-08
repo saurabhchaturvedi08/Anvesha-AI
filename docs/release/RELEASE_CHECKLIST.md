@@ -27,6 +27,7 @@ This checklist covers the public launch preparation for the v0.1.0 milestone.
 - [ ] State supported platforms and prerequisites clearly
 - [ ] Call out local model and provider configuration requirements
 - [ ] Include installation or upgrade steps for end users
+- [ ] Publish the v0.1.0 release notes in the public release section
 
 ## Public launch steps
 

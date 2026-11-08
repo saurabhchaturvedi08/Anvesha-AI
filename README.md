@@ -94,7 +94,7 @@ Anvesha is preparing for a public v0.1.0 milestone. Before a release, we verify:
 - security and contribution guidance are current
 - release notes clearly describe known limitations and setup requirements
 
-See [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md) for the current launch checklist.
+See [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md) for the current launch checklist and [docs/release/RELEASE_NOTES_v0.1.0.md](docs/release/RELEASE_NOTES_v0.1.0.md) for the public release notes.
 
 ## Contributing
 
