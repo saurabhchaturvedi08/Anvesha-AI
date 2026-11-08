@@ -8,13 +8,14 @@ Anvesha helps users turn broad research questions into structured, verifiable in
 
 ## Current status
 
-This repository is in the engineering foundation phase. The project is being scaffolded around:
+This repository is in the Phase 7 open-source launch preparation phase. The project is being scaffolded around:
 
 - Tauri 2 desktop app
 - React + TypeScript + Vite frontend
 - FastAPI backend with SQLAlchemy and SQLite
 - LangGraph-based research workflow
 - Local-first document and evidence storage
+- Release-ready contributor workflow and packaging validation
 
 ## Repository layout
 
@@ -81,6 +82,23 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 - Provider abstraction for LLMs and search services
 - Structured agent state with durable checkpoints
 - Privacy-first configuration and secure secret handling
+
+## Open-source launch checklist
+
+Anvesha is preparing for a public v0.1.0 milestone. Before a release, we verify:
+
+- backend regression tests pass
+- frontend production build passes
+- Tauri Windows installers build successfully
+- changelog and release notes are updated
+- security and contribution guidance are current
+- release notes clearly describe known limitations and setup requirements
+
+See [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md) for the current launch checklist.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull request expectations, and validation steps.
 
 ## License
 
