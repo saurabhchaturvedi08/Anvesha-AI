@@ -23,7 +23,14 @@ type Plan = {
   project_id: string;
   title: string;
   objective: string;
-  tasks: { id: string; title: string; description: string; estimated_minutes: number }[];
+  planning_mode?: string;
+  tasks: {
+    id: string;
+    title: string;
+    description: string;
+    estimated_minutes: number;
+    search_query?: string | null;
+  }[];
 };
 
 type Execution = {
@@ -41,6 +48,7 @@ type Execution = {
     source_url?: string | null;
     evidence_id?: number | null;
   }[];
+  agent_trace: { agent: string; status: string; detail: string }[];
   plan: Plan;
   search_status: string;
   model_status: string;
@@ -440,16 +448,17 @@ function App() {
 
         <div className="grid">
           <article className="panel hero">
-            <h2>Phase 3: evidence-backed research</h2>
+            <h2>Agentic, evidence-backed research</h2>
             <p>
-              Research runs are checkpointed, source quotes are verified against
-              their citations, and incomplete runs can resume from the last saved step.
+              A planning agent decomposes each objective, search agents gather sources,
+              and a supervisor can launch bounded follow-up research before claims are verified.
             </p>
             <ul>
-              <li>Supervised, conditional research workflow</li>
+              <li>AI-generated research tasks and targeted search queries</li>
+              <li>Bounded supervisor-led follow-up searches</li>
               <li>Persisted claims with linked source evidence</li>
               <li>Quote-level support verification</li>
-              <li>Checkpoint recovery for interrupted runs</li>
+              <li>Checkpoint recovery and a visible agent activity trace</li>
             </ul>
           </article>
 
@@ -506,7 +515,7 @@ function App() {
                       disabled={workingProjectId !== null}
                       onClick={() => void generatePlan(project.id)}
                     >
-                      Plan
+                      Agent plan
                     </button>
                     <button
                       type="button"
@@ -514,7 +523,7 @@ function App() {
                       disabled={workingProjectId !== null}
                       onClick={() => void executeProject(project.id)}
                     >
-                      {workingProjectId === project.id ? 'Running...' : 'Run'}
+                      {workingProjectId === project.id ? 'Running agents...' : 'Run agents'}
                     </button>
                     {resumableExecutions[project.id] && (
                       <button
@@ -686,6 +695,7 @@ function App() {
           <section className="panel result-panel">
             <p className="eyebrow">Research plan</p>
             <h2>{activePlan.title}</h2>
+            <p>Planning: {activePlan.planning_mode?.replace('_', ' ') ?? 'template'}</p>
             <p>{activePlan.objective}</p>
             <ol className="task-list">
               {activePlan.tasks.map((task) => (
@@ -693,6 +703,7 @@ function App() {
                   <div>
                     <strong>{task.title}</strong>
                     <p>{task.description}</p>
+                    {task.search_query && <small>Search: {task.search_query}</small>}
                   </div>
                   <small>{task.estimated_minutes} min</small>
                 </li>
@@ -711,11 +722,28 @@ function App() {
               <button className="secondary" type="button" onClick={exportReport}>Export Markdown</button>
             </div>
             <div className="execution-status">
+              <span>Planning: {execution.plan.planning_mode?.replace('_', ' ') ?? 'template'}</span>
               <span>Search: {execution.search_status}</span>
               <span>Model: {execution.model_status}</span>
               <span>Sources: {execution.summary.source_count}</span>
               <span>Verified claims: {execution.summary.verified_claim_count}</span>
             </div>
+            {execution.agent_trace.length > 0 && (
+              <div className="agent-trace">
+                <h3>Agent activity</h3>
+                <ol>
+                  {execution.agent_trace.map((step, index) => (
+                    <li key={`${step.agent}-${index}`}>
+                      <div className="claim-heading">
+                        <strong>{step.agent}</strong>
+                        <span className={`badge ${step.status}`}>{step.status.replace('_', ' ')}</span>
+                      </div>
+                      <p>{step.detail}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
             <pre className="report-text">{execution.report}</pre>
             {execution.claims.length > 0 && (
               <div className="claim-list">

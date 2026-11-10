@@ -49,7 +49,9 @@ The workflow is a bounded, stateful LangGraph graph with explicit transitions:
 9. Regenerate or expand research if evidence is insufficient
 10. Generate and persist report
 
-The current single-project graph implements planning, search, structured claim extraction, literal source-snippet verification, and reporting as bounded stages. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state.
+The current single-project graph implements AI-generated planning, task-directed search, structured claim extraction, literal source-snippet verification, supervisor-led follow-up search, and reporting as bounded stages. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If the planning model is unavailable or returns an unusable plan, the run records that status and uses the existing template plan.
+
+The desktop shows the plan's search queries and a user-facing activity trace (agent, status, and action summary). The trace is operational metadata only and never includes hidden chain-of-thought. The report is assembled from claims that passed literal quote verification; it does not use a model to invent or restate unsupported findings.
 
 ## State design
 

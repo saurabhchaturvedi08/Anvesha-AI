@@ -34,7 +34,7 @@ from app.services.document_retrieval import OpenAICompatibleEmbedder, retrieve_p
 from app.services.model_client import OpenAICompatibleModel
 from app.services.providers import list_providers, validate_provider
 from app.services.research_graph import research_graph
-from app.services.research_service import generate_research_plan, serialize_plan
+from app.services.research_service import generate_agentic_research_plan, serialize_plan
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -92,7 +92,7 @@ async def generate_project_plan(project_id: str, db: Session = Depends(get_db)) 
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
 
-    plan = generate_research_plan(
+    plan, _planning_status = generate_agentic_research_plan(
         project_id=project.id,
         title=project.title,
         objective=project.objective,
@@ -239,6 +239,7 @@ def _persist_execution_result(
         source_details=result.get("sources", []),
         plan=result["plan"],
         claims=persisted_claims,
+        agent_trace=result.get("agent_trace", []),
         search_status=result.get("search_status", "unknown"),
         model_status=result.get("model_status", "not_run"),
     ).model_dump(mode="json")

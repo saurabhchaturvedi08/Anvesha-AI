@@ -27,6 +27,7 @@ class ResearchPlanStep(BaseModel):
     title: str
     description: str
     estimated_minutes: int
+    search_query: str | None = None
 
 
 class ResearchPlan(BaseModel):
@@ -34,6 +35,7 @@ class ResearchPlan(BaseModel):
     title: str
     objective: str
     status: str = "planned"
+    planning_mode: str = "template"
     tasks: list[ResearchPlanStep]
 
 
@@ -47,6 +49,7 @@ class ResearchExecutionResult(BaseModel):
     source_details: list[dict[str, str]] = Field(default_factory=list)
     plan: dict[str, Any] = Field(default_factory=dict)
     claims: list[dict[str, Any]] = Field(default_factory=list)
+    agent_trace: list[dict[str, str]] = Field(default_factory=list)
     search_status: str
     model_status: str
 
