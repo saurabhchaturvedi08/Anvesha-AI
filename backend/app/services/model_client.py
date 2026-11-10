@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 
 import httpx
+from dotenv import load_dotenv
 
 
 class OpenAICompatibleModel:
     def __init__(self) -> None:
+        load_dotenv()
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
         self.base_url = (os.getenv("ANVESHA_MODEL_BASE_URL") or f"{ollama_url}/v1").rstrip("/")
         self.model = os.getenv("ANVESHA_MODEL_NAME") or "llama3.2"

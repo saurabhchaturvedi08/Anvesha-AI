@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app.routers import research as research_routes
@@ -45,6 +47,28 @@ def test_generate_research_plan() -> None:
     assert body["objective"] == "Compare LangGraph and a direct orchestration approach for research tasks."
     assert len(body["tasks"]) >= 2
     assert body["tasks"][0]["title"]
+
+
+def test_generate_agentic_research_plan(monkeypatch) -> None:
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: (
+            '{"tasks":[{"title":"Map research landscape","description":"Find primary sources.",'
+            '"search_query":"primary sources about research landscape","estimated_minutes":20}]}'
+        ),
+    )
+    created = client.post(
+        "/research/projects",
+        json={"title": "Agentic planning", "objective": "Map the research landscape."},
+    )
+
+    response = client.post(f"/research/projects/{created.json()['id']}/plan")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["planning_mode"] == "agentic"
+    assert body["tasks"][0]["search_query"] == "primary sources about research landscape"
 
 
 def test_execute_research_workflow() -> None:
@@ -117,6 +141,75 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
     history = client.get(f"/research/projects/{project_id}/executions").json()
     assert history[0]["id"] == body["execution_id"]
     assert history[0]["checkpoint_count"] >= 5
+
+
+def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
+    search_queries: list[str] = []
+    reflection_count = 0
+
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+
+    def fake_search(self, query, max_results=5):
+        search_queries.append(query)
+        if "follow-up detail" in query:
+            return [{
+                "title": "Follow-up source",
+                "url": "https://example.test/follow-up",
+                "snippet": "The follow-up source provides additional evidence for the research objective.",
+            }]
+        return [{
+            "title": "Initial source",
+            "url": "https://example.test/initial",
+            "snippet": "The initial source supports the research objective.",
+        }]
+
+    def fake_generate(self, prompt):
+        nonlocal reflection_count
+        if "research planning agent" in prompt:
+            return (
+                '{"tasks":[{"title":"Gather initial evidence","description":"Search primary sources.",'
+                '"search_query":"initial evidence for the objective","estimated_minutes":15}]}'
+            )
+        if "Extract only concise factual claims" in prompt:
+            claims = [{
+                "statement": "Initial evidence supports the objective.",
+                "quote": "The initial source supports the research objective.",
+                "source_index": 1,
+            }]
+            if "Source 2:" in prompt:
+                claims.append({
+                    "statement": "Follow-up evidence adds detail.",
+                    "quote": "The follow-up source provides additional evidence for the research objective.",
+                    "source_index": 2,
+                })
+            return json.dumps(claims)
+        if "research supervisor" in prompt:
+            reflection_count += 1
+            if reflection_count == 1:
+                return '{"needs_more_research":true,"follow_up_query":"follow-up detail for the objective"}'
+            return '{"needs_more_research":false,"follow_up_query":null}'
+        raise AssertionError("Unexpected model agent prompt")
+
+    monkeypatch.setattr(TavilySearchProvider, "search", fake_search)
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", fake_generate)
+    created = client.post(
+        "/research/projects",
+        json={
+            "title": "Bounded agent loop",
+            "objective": "Gather and verify evidence for the objective.",
+            "research_depth": "standard",
+        },
+    )
+
+    response = client.post(f"/research/projects/{created.json()['id']}/execute")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert search_queries == ["initial evidence for the objective", "follow-up detail for the objective"]
+    assert body["sources"] == 2
+    assert body["summary"]["verified_claim_count"] == 2
+    assert any(step["agent"] == "Supervisor" and step["status"] == "more_research" for step in body["agent_trace"])
+    assert any(step["agent"] == "Report agent" for step in body["agent_trace"])
 
 
 def test_unsupported_claim_is_not_persisted_as_evidence(monkeypatch) -> None:

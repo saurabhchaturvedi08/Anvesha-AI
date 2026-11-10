@@ -180,6 +180,16 @@ def _decode_claims(response: str) -> list[dict[str, Any]]:
     return claims
 
 
+def _decode_json_object(response: str) -> dict[str, Any]:
+    content = response.strip()
+    if content.startswith("```"):
+        content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    payload = json.loads(content)
+    if not isinstance(payload, dict):
+        raise ValueError("The supervisor returned an invalid response")
+    return payload
+
+
 def extract_claims(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
     source_text = "\n".join(
         f"Source {index}: {source['title']}\n{source['snippet']}"
@@ -236,9 +246,7 @@ def verify_claims(state: ResearchState, config: RunnableConfig) -> dict[str, Any
                 ),
             }
         )
-
     has_supported = any(claim["status"] == "supported" for claim in verified)
-    next_node = "report" if has_supported else "insufficient_report"
     update = {
         "claims": verified,
         "research_status": "evidence_available" if has_supported else "insufficient_evidence",
@@ -269,9 +277,7 @@ def reflect_on_evidence(state: ResearchState, config: RunnableConfig) -> dict[st
             f"Verified findings: {verified_findings}"
         )
         try:
-            payload = json.loads(OpenAICompatibleModel().generate(prompt).strip())
-            if not isinstance(payload, dict):
-                raise ValueError("The supervisor returned an invalid response")
+            payload = _decode_json_object(OpenAICompatibleModel().generate(prompt))
             proposed_query = payload.get("follow_up_query")
             if payload.get("needs_more_research") is True and isinstance(proposed_query, str) and proposed_query.strip():
                 query = proposed_query.strip()[:500]

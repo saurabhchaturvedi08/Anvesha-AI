@@ -75,6 +75,18 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
+### Configure the agentic research flow
+
+Copy `.env.example` to `.env` and configure:
+
+- `TAVILY_API_KEY` for web search
+- `ANVESHA_MODEL_BASE_URL` and `ANVESHA_MODEL_NAME` for an OpenAI-compatible model endpoint (the default is local Ollama)
+- `ANVESHA_MODEL_API_KEY` when the selected model endpoint requires a key
+
+Create a research project in the desktop app and choose **Agent plan** to preview AI-generated tasks and search queries, or **Run agents** to start the full workflow. The planner, search agent, claim extractor, verifier, and supervisor work through bounded, checkpointed stages. The supervisor may request follow-up searches according to the selected depth (up to one, two, or three rounds for quick, standard, or deep research). Review the agent activity trace, verified claims, and citations in the execution result.
+
+If the planning model is unavailable, Anvesha marks the run as using a template fallback. Missing search configuration or insufficient verified evidence produces an explicit incomplete report rather than unsupported findings.
+
 ## Development principles
 
 - Local-first by default

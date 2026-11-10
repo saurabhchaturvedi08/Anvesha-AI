@@ -4,10 +4,12 @@ import os
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
 
 
 class TavilySearchProvider:
     def __init__(self, api_key: str | None = None) -> None:
+        load_dotenv()
         self.api_key = api_key if api_key is not None else os.getenv("TAVILY_API_KEY", "")
 
     def search(self, query: str, max_results: int = 5) -> list[dict[str, str]]:
