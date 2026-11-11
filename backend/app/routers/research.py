@@ -7,7 +7,6 @@ from pathlib import PurePath
 from typing import Any
 from uuid import uuid4
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -30,8 +29,8 @@ from app.schemas import (
     ResearchPlan,
     ResearchProjectCreate,
 )
+from app.services.document_followup import run_document_followup
 from app.services.document_retrieval import OpenAICompatibleEmbedder, retrieve_project_chunks, split_into_chunks
-from app.services.model_client import OpenAICompatibleModel
 from app.services.providers import list_providers, validate_provider
 from app.services.research_graph import research_graph
 from app.services.research_service import generate_agentic_research_plan, serialize_plan
@@ -239,6 +238,7 @@ def _persist_execution_result(
         source_details=result.get("sources", []),
         plan=result["plan"],
         claims=persisted_claims,
+        analysis=result.get("analysis", []),
         agent_trace=result.get("agent_trace", []),
         search_status=result.get("search_status", "unknown"),
         model_status=result.get("model_status", "not_run"),
@@ -561,46 +561,10 @@ async def follow_up_research(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research project not found")
 
-    retrieved = retrieve_project_chunks(db, project_id, payload.query, payload.limit)
-    results = retrieved["results"]
-    sources = [
-        {
-            "index": index,
-            "document_id": row["document_id"],
-            "chunk_id": row["chunk_id"],
-            "filename": row["filename"],
-            "text": row["text"],
-        }
-        for index, row in enumerate(results, start=1)
-    ]
-    if not sources:
-        answer = "No matching local documents were found. Add a text or Markdown document, or broaden the query."
-    else:
-        context = "\n\n".join(f"[{source['index']}] {source['filename']}: {source['text']}" for source in sources)
-        prompt = (
-            "Answer the follow-up question using only the supplied local document excerpts. Cite every factual "
-            "statement with a bracketed source number such as [1]. If the excerpts do not answer the question, "
-            "say so. Do not invent facts.\n\n"
-            f"Question: {payload.query}\n\nExcerpts:\n{context}"
-        )
-        try:
-            answer = OpenAICompatibleModel().generate(prompt)
-            model_status = "ready"
-        except (httpx.HTTPError, ValueError, KeyError, IndexError):
-            answer = "Matching local excerpts were retrieved, but the configured model is unavailable.\n\n" + "\n".join(
-                f"[{source['index']}] {source['text']}" for source in sources
-            )
-            model_status = "unavailable"
-    if not sources:
-        model_status = "not_run"
     return {
         "project_id": project_id,
         "query": payload.query,
-        "answer": answer,
-        "sources": sources,
-        "retrieval_mode": retrieved["retrieval_mode"],
-        "embedding_status": retrieved.get("embedding_status", "not_configured"),
-        "model_status": model_status,
+        **run_document_followup(db, project_id, payload.query, payload.limit),
     }
 
 

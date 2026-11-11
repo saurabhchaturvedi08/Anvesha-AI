@@ -48,6 +48,7 @@ type Execution = {
     source_url?: string | null;
     evidence_id?: number | null;
   }[];
+  analysis: { statement: string; relation: string; claim_indices: number[] }[];
   agent_trace: { agent: string; status: string; detail: string }[];
   plan: Plan;
   search_status: string;
@@ -68,6 +69,7 @@ type FollowUpResult = {
   embedding_status: string;
   model_status: string;
   sources: { index: number; filename: string; text: string }[];
+  agent_trace: { agent: string; status: string; detail: string }[];
 };
 
 type StoredClaim = {
@@ -678,6 +680,22 @@ function App() {
                 <span>Embeddings: {followUpResult.embedding_status}</span>
                 <span>Model: {followUpResult.model_status}</span>
               </div>
+              {followUpResult.agent_trace.length > 0 && (
+                <div className="agent-trace">
+                  <h3>Agent activity</h3>
+                  <ol>
+                    {followUpResult.agent_trace.map((step, index) => (
+                      <li key={`${step.agent}-${index}`}>
+                        <div className="claim-heading">
+                          <strong>{step.agent}</strong>
+                          <span className={`badge ${step.status}`}>{step.status.replace('_', ' ')}</span>
+                        </div>
+                        <p>{step.detail}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
               <pre className="report-text">{followUpResult.answer}</pre>
               {followUpResult.sources.map((source) => (
                 <article className="source-item" key={source.index}>
@@ -742,6 +760,20 @@ function App() {
                     </li>
                   ))}
                 </ol>
+              </div>
+            )}
+            {execution.analysis.length > 0 && (
+              <div className="claim-list">
+                <h3>Agent analysis <small>(interpretations, not independently verified)</small></h3>
+                {execution.analysis.map((item, index) => (
+                  <article className="claim-item" key={`${item.relation}-${index}`}>
+                    <div className="claim-heading">
+                      <strong>{item.statement}</strong>
+                      <span className="badge">{item.relation}</span>
+                    </div>
+                    <small>Based on verified claims {item.claim_indices.join(', ')}</small>
+                  </article>
+                ))}
               </div>
             )}
             <pre className="report-text">{execution.report}</pre>

@@ -27,6 +27,8 @@ class ResearchState(TypedDict, total=False):
     max_rounds: int
     sources: list[dict[str, str]]
     claims: list[dict[str, Any]]
+    analysis: list[dict[str, Any]]
+    report_sections: list[dict[str, Any]]
     report: str
     agent_trace: list[dict[str, str]]
     planning_status: str
@@ -34,6 +36,8 @@ class ResearchState(TypedDict, total=False):
     search_status: str
     model_status: str
     extraction_status: str
+    analysis_status: str
+    report_status: str
     research_status: str
 
 
@@ -261,6 +265,71 @@ def verify_claims(state: ResearchState, config: RunnableConfig) -> dict[str, Any
     return update
 
 
+def analyze_claims(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
+    supported = [
+        {"index": index, "statement": claim["statement"], "quote": claim["quote"], "source_url": claim.get("source_url")}
+        for index, claim in enumerate(state.get("claims", []), start=1)
+        if claim.get("status") == "supported"
+    ]
+    observations: list[dict[str, Any]] = []
+    analysis_status = "skipped"
+    if len(supported) >= 2:
+        prompt = (
+            "You are a research analysis agent. Compare only these verified claims. Return only JSON with an "
+            '"observations" array. Each observation must include a concise statement, relation ('
+            '"corroborates, contrasts, or related), and claim_indices containing at least two 1-based indices '
+            "from the supplied claims. Do not introduce outside facts or present interpretations as verified facts. "
+            "Return an empty array when there is no useful cross-claim observation.\n\n"
+            f"Objective: {state['objective']}\nVerified claims: {json.dumps(supported, ensure_ascii=False)}"
+        )
+        try:
+            payload = _decode_json_object(OpenAICompatibleModel().generate(prompt))
+            raw_observations = payload.get("observations")
+            if not isinstance(raw_observations, list):
+                raise ValueError("The analysis agent returned no observations list")
+            allowed = {item["index"] for item in supported}
+            for item in raw_observations[:8]:
+                if not isinstance(item, dict):
+                    continue
+                statement = item.get("statement")
+                relation = item.get("relation")
+                indices = item.get("claim_indices")
+                if not isinstance(statement, str) or not statement.strip() or relation not in {
+                    "corroborates",
+                    "contrasts",
+                    "related",
+                } or not isinstance(indices, list):
+                    continue
+                valid_indices = list(dict.fromkeys(
+                    index for index in indices
+                    if isinstance(index, int) and not isinstance(index, bool) and index in allowed
+                ))
+                if len(valid_indices) >= 2:
+                    observations.append(
+                        {
+                            "statement": statement.strip()[:1000],
+                            "relation": relation,
+                            "claim_indices": valid_indices,
+                        }
+                    )
+            analysis_status = "ready"
+        except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
+            analysis_status = f"unavailable:{exc.__class__.__name__}"
+
+    update = {
+        "analysis": observations,
+        "analysis_status": analysis_status,
+        "agent_trace": _trace(
+            state,
+            "Analysis agent",
+            analysis_status,
+            f"Produced {len(observations)} cross-claim observation(s) from {len(supported)} verified claim(s).",
+        ),
+    }
+    _checkpoint(state, update, "analysis", "reflect", config)
+    return update
+
+
 def reflect_on_evidence(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
     supported = [claim for claim in state.get("claims", []) if claim.get("status") == "supported"]
     query = None
@@ -305,24 +374,121 @@ def reflect_on_evidence(state: ResearchState, config: RunnableConfig) -> dict[st
 
 def _build_report(state: ResearchState) -> str:
     sources = state.get("sources", [])
-    supported = [claim for claim in state.get("claims", []) if claim["status"] == "supported"]
-    lines = [f"Research objective: {state['objective']}", "", "Verified findings:"]
-    for claim in supported:
-        source = sources[claim["source_index"] - 1]
-        lines.extend(
-            [
-                f"- {claim['statement']} [{source['title']}]({source['url']})",
-                f'  Supporting quote: "{claim["quote"]}"',
-            ]
-        )
+    supported = {
+        index: claim
+        for index, claim in enumerate(state.get("claims", []), start=1)
+        if claim["status"] == "supported"
+    }
+    sections = state.get("report_sections", [])
+    lines = [f"Research objective: {state['objective']}", ""]
+    if sections:
+        for section in sections:
+            lines.extend([f"## {section['title']}", ""])
+            for claim_index in section["claim_indices"]:
+                claim = supported[claim_index]
+                source = sources[claim["source_index"] - 1]
+                lines.extend(
+                    [
+                        f"- {claim['statement']} [{source['title']}]({source['url']})",
+                        f'  Supporting quote: "{claim["quote"]}"',
+                    ]
+                )
+                lines.append("")
+    else:
+        lines.append("## Verified findings")
+        lines.append("")
+        for claim in supported.values():
+            source = sources[claim["source_index"] - 1]
+            lines.extend(
+                [
+                    f"- {claim['statement']} [{source['title']}]({source['url']})",
+                    f'  Supporting quote: "{claim["quote"]}"',
+                    "",
+                ]
+            )
+    if state.get("analysis"):
+        lines.extend(["## Agent analysis (interpretations; not independently verified)", ""])
+        claims = state.get("claims", [])
+        for observation in state["analysis"]:
+            references = []
+            for claim_index in observation["claim_indices"]:
+                claim = claims[claim_index - 1]
+                source = sources[claim["source_index"] - 1]
+                references.append(f"[{source['title']}]({source['url']})")
+            lines.append(f"- **{observation['relation'].capitalize()}:** {observation['statement']} ({'; '.join(references)})")
+        lines.append("")
     lines.extend(["", "Limitations: Findings are limited to the collected snippets; source quality and context require review."])
     return "\n".join(lines)
+
+
+def organize_report(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
+    supported = [
+        {"index": index, "statement": claim["statement"]}
+        for index, claim in enumerate(state.get("claims", []), start=1)
+        if claim.get("status") == "supported"
+    ]
+    sections: list[dict[str, Any]] = []
+    report_status = "fallback"
+    if supported:
+        prompt = (
+            "You are a report-organization agent. Group these already verified claims into a concise report outline. "
+            "Return only JSON with a sections array; each section has a short title and claim_indices. Use each "
+            "provided 1-based claim index exactly once. Do not write summaries or add factual statements.\n\n"
+            f"Objective: {state['objective']}\nClaims: {json.dumps(supported, ensure_ascii=False)}"
+        )
+        try:
+            payload = _decode_json_object(OpenAICompatibleModel().generate(prompt))
+            raw_sections = payload.get("sections")
+            if not isinstance(raw_sections, list):
+                raise ValueError("The report agent returned no sections list")
+            allowed = {item["index"] for item in supported}
+            seen: set[int] = set()
+            for item in raw_sections[:len(supported)]:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("title")
+                indices = item.get("claim_indices")
+                if not isinstance(title, str) or not title.strip() or not isinstance(indices, list):
+                    continue
+                section_indices = []
+                for index in indices:
+                    if (
+                        isinstance(index, int)
+                        and not isinstance(index, bool)
+                        and index in allowed
+                        and index not in seen
+                    ):
+                        seen.add(index)
+                        section_indices.append(index)
+                if section_indices:
+                    sections.append({"title": title.strip()[:120], "claim_indices": section_indices})
+            if seen != allowed:
+                sections = []
+                for item in supported:
+                    sections.append({"title": "Verified findings", "claim_indices": [item["index"]]})
+                report_status = "fallback:incomplete_outline"
+            else:
+                report_status = "ready"
+        except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
+            report_status = f"fallback:{exc.__class__.__name__}"
+    update = {
+        "report_sections": sections,
+        "report_status": report_status,
+        "agent_trace": _trace(
+            state,
+            "Report agent",
+            "ready" if report_status == "ready" else report_status,
+            "Organized verified claim IDs into report sections; report findings remain source quotes and verified claims.",
+        ),
+    }
+    _checkpoint(state, update, "report_plan", "report", config)
+    return update
 
 
 def create_report(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
     update = {
         "report": _build_report(state),
-        "agent_trace": _trace(state, "Report agent", "ready", "Assembled the report from verified claims and their cited sources."),
+        "agent_trace": _trace(state, "Report renderer", "ready", "Rendered the validated report outline with verified claims and citations."),
     }
     _checkpoint(state, update, "report", "__end__", config)
     return update
@@ -381,7 +547,9 @@ def build_research_graph():
     graph.add_node("search", collect_sources)
     graph.add_node("extract", extract_claims)
     graph.add_node("verify", verify_claims)
+    graph.add_node("analysis", analyze_claims)
     graph.add_node("reflect", reflect_on_evidence)
+    graph.add_node("report_plan", organize_report)
     graph.add_node("report", create_report)
     graph.add_node("insufficient_report", create_insufficient_report)
     graph.add_node("no_sources_report", create_no_sources_report)
@@ -393,7 +561,9 @@ def build_research_graph():
             "search": "search",
             "extract": "extract",
             "verify": "verify",
+            "analysis": "analysis",
             "reflect": "reflect",
+            "report_plan": "report_plan",
             "report": "report",
             "insufficient_report": "insufficient_report",
             "no_sources_report": "no_sources_report",
@@ -402,12 +572,14 @@ def build_research_graph():
     graph.add_edge("plan", "search")
     graph.add_conditional_edges("search", _after_search, {"extract": "extract", "no_sources_report": "no_sources_report"})
     graph.add_edge("extract", "verify")
-    graph.add_edge("verify", "reflect")
+    graph.add_edge("verify", "analysis")
+    graph.add_edge("analysis", "reflect")
     graph.add_conditional_edges(
         "reflect",
         _after_reflection,
-        {"search": "search", "report": "report", "insufficient_report": "insufficient_report"},
+        {"search": "search", "report": "report_plan", "insufficient_report": "insufficient_report"},
     )
+    graph.add_edge("report_plan", "report")
     graph.add_edge("report", END)
     graph.add_edge("insufficient_report", END)
     graph.add_edge("no_sources_report", END)

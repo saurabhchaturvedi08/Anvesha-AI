@@ -170,6 +170,10 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
                 '{"tasks":[{"title":"Gather initial evidence","description":"Search primary sources.",'
                 '"search_query":"initial evidence for the objective","estimated_minutes":15}]}'
             )
+        if "research analysis agent" in prompt:
+            return '{"observations":[{"statement":"The two findings address related aspects.","relation":"related","claim_indices":[1,2]}]}'
+        if "report-organization agent" in prompt:
+            return '{"sections":[{"title":"Verified findings","claim_indices":[1,2]}]}'
         if "Extract only concise factual claims" in prompt:
             claims = [{
                 "statement": "Initial evidence supports the objective.",
@@ -208,7 +212,9 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
     assert search_queries == ["initial evidence for the objective", "follow-up detail for the objective"]
     assert body["sources"] == 2
     assert body["summary"]["verified_claim_count"] == 2
+    assert body["analysis"][0]["relation"] == "related"
     assert any(step["agent"] == "Supervisor" and step["status"] == "more_research" for step in body["agent_trace"])
+    assert any(step["agent"] == "Analysis agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Report agent" for step in body["agent_trace"])
 
 
@@ -329,7 +335,20 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     assert retrieved.json()["results"][0]["filename"] == "notes.md"
     assert "SQLite" in retrieved.json()["results"][0]["text"]
 
-    monkeypatch.setattr(OpenAICompatibleModel, "generate", lambda self, prompt: "SQLite supports local full-text retrieval [1].")
+    def fake_generate(self, prompt):
+        if "local-document research planner" in prompt:
+            return '{"queries":["SQLite full-text retrieval"]}'
+        if "research supervisor for local-document search" in prompt:
+            return '{"needs_more_research":false,"follow_up_query":null}'
+        if "Answer the question using only the supplied local-document excerpts" in prompt:
+            return json.dumps([{
+                "statement": "SQLite provides local full-text retrieval.",
+                "quote": "SQLite FTS5 provides local full-text retrieval.",
+                "source_index": 1,
+            }])
+        raise AssertionError("Unexpected follow-up agent prompt")
+
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", fake_generate)
     follow_up = client.post(
         f"/research/projects/{project['id']}/follow-up",
         json={"query": "How does SQLite support local retrieval?"},
@@ -337,6 +356,12 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     assert follow_up.status_code == 200
     assert "[1]" in follow_up.json()["answer"]
     assert follow_up.json()["sources"][0]["filename"] == "notes.md"
+    assert [step["agent"] for step in follow_up.json()["agent_trace"]] == [
+        "Document planner",
+        "Retrieval agent",
+        "Document supervisor",
+        "Document answer agent",
+    ]
 
     duplicate = client.post(
         f"/research/projects/{project['id']}/documents",
