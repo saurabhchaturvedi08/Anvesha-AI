@@ -458,9 +458,11 @@ function App() {
             <ul>
               <li>AI-generated research tasks and targeted search queries</li>
               <li>Bounded supervisor-led follow-up searches</li>
+              <li>AI analysis and report organization over verified claims</li>
               <li>Persisted claims with linked source evidence</li>
               <li>Quote-level support verification</li>
-              <li>Checkpoint recovery and a visible agent activity trace</li>
+              <li>Agentic, quote-verified local-document follow-up</li>
+              <li>Checkpoint recovery and visible agent activity traces</li>
             </ul>
           </article>
 

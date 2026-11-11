@@ -335,12 +335,21 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     assert retrieved.json()["results"][0]["filename"] == "notes.md"
     assert "SQLite" in retrieved.json()["results"][0]["text"]
 
+    invalid_quote = False
+
     def fake_generate(self, prompt):
+        nonlocal invalid_quote
         if "local-document research planner" in prompt:
             return '{"queries":["SQLite full-text retrieval"]}'
         if "research supervisor for local-document search" in prompt:
             return '{"needs_more_research":false,"follow_up_query":null}'
         if "Answer the question using only the supplied local-document excerpts" in prompt:
+            if invalid_quote:
+                return json.dumps([{
+                    "statement": "A fabricated document claim.",
+                    "quote": "This quote is absent from every document.",
+                    "source_index": 1,
+                }])
             return json.dumps([{
                 "statement": "SQLite provides local full-text retrieval.",
                 "quote": "SQLite FTS5 provides local full-text retrieval.",
@@ -362,6 +371,15 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
         "Document supervisor",
         "Document answer agent",
     ]
+
+    invalid_quote = True
+    unverified_follow_up = client.post(
+        f"/research/projects/{project['id']}/follow-up",
+        json={"query": "What does this document say?"},
+    )
+    assert unverified_follow_up.status_code == 200
+    assert unverified_follow_up.json()["claims"] == []
+    assert "quote verification" in unverified_follow_up.json()["answer"]
 
     duplicate = client.post(
         f"/research/projects/{project['id']}/documents",

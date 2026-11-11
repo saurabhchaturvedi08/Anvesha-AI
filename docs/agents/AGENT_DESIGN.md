@@ -32,26 +32,31 @@ Validates whether cited evidence actually supports the claim; flags unsupported 
 
 ### Report Agent
 
-Produces a final report with methodology, findings, limitations, and references.
+Organizes verified claim IDs into a report outline. The renderer uses only the referenced verified claims and their original citations.
+
+### Document Follow-up Agents
+
+The local-document workflow uses a planner to propose retrieval queries, a retrieval tool agent to fetch project-scoped excerpts, a supervisor to decide whether to run one additional retrieval round, and an answer agent to extract claims with exact quotes.
 
 ## Execution model
 
 The workflow is a bounded, stateful LangGraph graph with explicit transitions:
 
 1. Initialize research
-2. Planner validation
-3. Create research tasks
-4. Execute research tasks
-5. Extract evidence
-6. Deduplicate sources
-7. Analyze findings
-8. Verify claim support
-9. Regenerate or expand research if evidence is insufficient
-10. Generate and persist report
+2. Plan tasks and targeted search queries
+3. Search and deduplicate sources
+4. Extract candidate claims
+5. Verify each claim against its source snippet
+6. Analyze relationships among verified claims
+7. Let the supervisor schedule bounded follow-up searches
+8. Organize verified claims into report sections
+9. Render and persist the cited report
 
-The current single-project graph implements AI-generated planning, task-directed search, structured claim extraction, literal source-snippet verification, supervisor-led follow-up search, and reporting as bounded stages. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If the planning model is unavailable or returns an unusable plan, the run records that status and uses the existing template plan.
+The current research graph uses AI-generated planning, task-directed search, structured claim extraction, cross-claim analysis, supervisor-led follow-up search, and report organization. Quote matching remains deterministic and is the gate for supported claims. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If an agent is unavailable or returns unusable output, its status is visible and the graph uses a constrained fallback or omits that agent's output.
 
-The desktop shows the plan's search queries and a user-facing activity trace (agent, status, and action summary). The trace is operational metadata only and never includes hidden chain-of-thought. The report is assembled from claims that passed literal quote verification; it does not use a model to invent or restate unsupported findings.
+The local-document follow-up graph plans up to three retrieval queries, gathers project-scoped excerpts, and lets the supervisor schedule at most one additional round. The answer agent must return exact quotes and valid excerpt indices; only literal quote matches are included in the answer. Both workflows expose an activity trace (agent, status, and action summary), never hidden chain-of-thought.
+
+Project creation, document upload, persistence, retrieval execution, quote verification, report rendering, and other CRUD/file operations are intentionally deterministic tool actions rather than AI decisions. AI is used for interpreting goals, selecting bounded work, comparing verified findings, and drafting evidence-linked answer claims.
 
 ## State design
 
