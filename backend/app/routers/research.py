@@ -237,6 +237,8 @@ def _persist_execution_result(
         sources=len(result.get("sources", [])),
         source_details=result.get("sources", []),
         plan=result["plan"],
+        research_findings=result.get("research_findings", []),
+        task_coverage=result.get("task_coverage", []),
         claims=persisted_claims,
         analysis=result.get("analysis", []),
         agent_trace=result.get("agent_trace", []),

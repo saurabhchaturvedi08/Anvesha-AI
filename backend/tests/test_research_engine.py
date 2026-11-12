@@ -170,6 +170,26 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
                 '{"tasks":[{"title":"Gather initial evidence","description":"Search primary sources.",'
                 '"search_query":"initial evidence for the objective","estimated_minutes":15}]}'
             )
+        if "You are the research agent." in prompt:
+            has_follow_up = '"source_index": 2' in prompt
+            return json.dumps({
+                "task_results": [{
+                    "task_id": "step-1",
+                    "status": "covered" if has_follow_up else "partial",
+                    "findings": [
+                        {
+                            "statement": "Initial evidence supports the research objective.",
+                            "quote": "The initial source supports the research objective.",
+                            "source_index": 1,
+                        },
+                        *([{
+                            "statement": "Follow-up evidence adds detail.",
+                            "quote": "The follow-up source provides additional evidence for the research objective.",
+                            "source_index": 2,
+                        }] if has_follow_up else []),
+                    ],
+                }]
+            })
         if "research analysis agent" in prompt:
             return '{"observations":[{"statement":"The two findings address related aspects.","relation":"related","claim_indices":[1,2]}]}'
         if "report-organization agent" in prompt:
@@ -212,8 +232,11 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
     assert search_queries == ["initial evidence for the objective", "follow-up detail for the objective"]
     assert body["sources"] == 2
     assert body["summary"]["verified_claim_count"] == 2
+    assert body["task_coverage"][0]["finding_count"] == 2
+    assert all(finding["quote"] for finding in body["research_findings"])
     assert body["analysis"][0]["relation"] == "related"
     assert any(step["agent"] == "Supervisor" and step["status"] == "more_research" for step in body["agent_trace"])
+    assert any(step["agent"] == "Research agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Analysis agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Report agent" for step in body["agent_trace"])
 
@@ -341,6 +364,8 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
         nonlocal invalid_quote
         if "local-document research planner" in prompt:
             return '{"queries":["SQLite full-text retrieval"]}'
+        if "You are the research agent." in prompt:
+            return '{"task_results":[]}'
         if "research supervisor for local-document search" in prompt:
             return '{"needs_more_research":false,"follow_up_query":null}'
         if "Answer the question using only the supplied local-document excerpts" in prompt:

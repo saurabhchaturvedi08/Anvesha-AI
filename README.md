@@ -83,7 +83,7 @@ Copy `.env.example` to `.env` and configure:
 - `ANVESHA_MODEL_BASE_URL` and `ANVESHA_MODEL_NAME` for an OpenAI-compatible model endpoint (the default is local Ollama)
 - `ANVESHA_MODEL_API_KEY` when the selected model endpoint requires a key
 
-Create a research project in the desktop app and choose **Agent plan** to preview AI-generated tasks and search queries, or **Run agents** to start the full workflow. Planning, search, extraction, analysis of verified claims, supervisor-led follow-up, and report organization run as bounded stages. Quote matching and report rendering remain deterministic safeguards. The supervisor may request follow-up searches according to the selected depth (up to one, two, or three rounds for quick, standard, or deep research).
+Create a research project in the desktop app and choose **Agent plan** to preview AI-generated tasks and search queries, or **Run agents** to start the full workflow. Planning, search, mapping source findings to planned tasks, extraction, analysis of verified claims, supervisor-led follow-up, and report organization run as bounded stages. Quote matching and report rendering remain deterministic safeguards. The supervisor may request follow-up searches according to the selected depth (up to one, two, or three rounds for quick, standard, or deep research).
 
 Local-document follow-up also uses a planner, project-scoped retrieval, a bounded supervisor, and an answer agent. Answers only include statements with exact quote matches in the retrieved excerpts. Both workflows show agent activity in the desktop. Creating projects, uploading documents, and persistence remain regular user-controlled data operations; they do not need an AI agent.
 

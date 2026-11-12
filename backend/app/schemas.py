@@ -48,6 +48,8 @@ class ResearchExecutionResult(BaseModel):
     sources: int
     source_details: list[dict[str, str]] = Field(default_factory=list)
     plan: dict[str, Any] = Field(default_factory=dict)
+    research_findings: list[dict[str, Any]] = Field(default_factory=list)
+    task_coverage: list[dict[str, Any]] = Field(default_factory=list)
     claims: list[dict[str, Any]] = Field(default_factory=list)
     analysis: list[dict[str, Any]] = Field(default_factory=list)
     agent_trace: list[dict[str, str]] = Field(default_factory=list)

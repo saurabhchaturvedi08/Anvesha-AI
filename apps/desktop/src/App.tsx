@@ -40,6 +40,14 @@ type Execution = {
   summary: { source_count: number; research_status: string; verified_claim_count: number };
   report: string;
   source_details: { title: string; url: string; snippet: string }[];
+  research_findings: {
+    task_id: string;
+    task_title: string;
+    statement: string;
+    quote: string;
+    source_index: number;
+  }[];
+  task_coverage: { task_id: string; task_title: string; status: string; finding_count: number }[];
   claims: {
     id: number;
     statement: string;
@@ -774,6 +782,20 @@ function App() {
                       <span className="badge">{item.relation}</span>
                     </div>
                     <small>Based on verified claims {item.claim_indices.join(', ')}</small>
+                  </article>
+                ))}
+              </div>
+            )}
+            {execution.task_coverage.length > 0 && (
+              <div className="claim-list">
+                <h3>Research task coverage</h3>
+                {execution.task_coverage.map((task) => (
+                  <article className="claim-item" key={task.task_id}>
+                    <div className="claim-heading">
+                      <strong>{task.task_title}</strong>
+                      <span className={`badge ${task.status}`}>{task.status}</span>
+                    </div>
+                    <small>{task.finding_count} quote-checked finding(s)</small>
                   </article>
                 ))}
               </div>
