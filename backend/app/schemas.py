@@ -50,6 +50,9 @@ class ResearchExecutionResult(BaseModel):
     plan: dict[str, Any] = Field(default_factory=dict)
     research_findings: list[dict[str, Any]] = Field(default_factory=list)
     task_coverage: list[dict[str, Any]] = Field(default_factory=list)
+    extracted_entities: list[dict[str, Any]] = Field(default_factory=list)
+    extracted_dates: list[dict[str, Any]] = Field(default_factory=list)
+    entity_extraction_status: str = "not_run"
     claims: list[dict[str, Any]] = Field(default_factory=list)
     analysis: list[dict[str, Any]] = Field(default_factory=list)
     verification_status: str = "not_run"

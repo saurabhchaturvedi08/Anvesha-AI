@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.routers import research as research_routes
 from app.main import app
 from app.services.model_client import OpenAICompatibleModel
+from app.services.research_graph import extract_entities_and_dates
 from app.services.search_provider import TavilySearchProvider
 
 client = TestClient(app)
@@ -69,6 +70,59 @@ def test_generate_agentic_research_plan(monkeypatch) -> None:
     body = response.json()
     assert body["planning_mode"] == "agentic"
     assert body["tasks"][0]["search_query"] == "primary sources about research landscape"
+
+
+def test_extraction_agent_returns_only_source_quoted_entities_and_dates(monkeypatch) -> None:
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: json.dumps({
+            "entities": [
+                {
+                    "value": "Acme Research",
+                    "type": "organization",
+                    "quote": "Acme Research launched the Atlas product in March 2025.",
+                    "source_index": 1,
+                },
+                {
+                    "value": "Invented Labs",
+                    "type": "organization",
+                    "quote": "Invented Labs launched a new product.",
+                    "source_index": 1,
+                },
+            ],
+            "dates": [
+                {
+                    "value": "March 2025",
+                    "quote": "Acme Research launched the Atlas product in March 2025.",
+                    "source_index": 1,
+                },
+            ],
+        }),
+    )
+    state = {
+        "objective": "Track organizations and launch dates.",
+        "sources": [{
+            "title": "Launch announcement",
+            "url": "https://example.test/launch",
+            "snippet": "Acme Research launched the Atlas product in March 2025.",
+        }],
+    }
+
+    result = extract_entities_and_dates(state, {"configurable": {}})
+
+    assert result["entity_extraction_status"] == "ready"
+    assert result["extracted_entities"] == [{
+        "value": "Acme Research",
+        "quote": "Acme Research launched the Atlas product in March 2025.",
+        "source_index": 1,
+        "type": "organization",
+    }]
+    assert result["extracted_dates"] == [{
+        "value": "March 2025",
+        "quote": "Acme Research launched the Atlas product in March 2025.",
+        "source_index": 1,
+    }]
 
 
 def test_execute_research_workflow() -> None:
@@ -193,6 +247,8 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
                     ],
                 }]
             })
+        if "You are the Extraction Agent." in prompt:
+            return '{"entities":[],"dates":[]}'
         if "research analysis agent" in prompt:
             return '{"observations":[{"statement":"The two findings address related aspects.","relation":"related","claim_indices":[1,2]}]}'
         if "report-organization agent" in prompt:
@@ -312,6 +368,8 @@ def test_verification_agent_rejects_overclaim_despite_exact_quote(monkeypatch) -
                     }],
                 }]
             })
+        if "You are the Extraction Agent." in prompt:
+            return '{"entities":[],"dates":[]}'
         if "Extract only concise factual claims" in prompt:
             return json.dumps([{
                 "statement": "Revenue doubled every quarter.",

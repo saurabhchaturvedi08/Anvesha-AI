@@ -48,6 +48,14 @@ type Execution = {
     source_index: number;
   }[];
   task_coverage: { task_id: string; task_title: string; status: string; finding_count: number }[];
+  extracted_entities: {
+    value: string;
+    type: string;
+    quote: string;
+    source_index: number;
+  }[];
+  extracted_dates: { value: string; quote: string; source_index: number }[];
+  entity_extraction_status: string;
   claims: {
     id: number;
     statement: string;
@@ -823,6 +831,25 @@ function App() {
                     <small>{task.finding_count} quote-checked finding(s)</small>
                   </article>
                 ))}
+              </div>
+            )}
+            {(execution.extracted_entities.length > 0 || execution.extracted_dates.length > 0) && (
+              <div className="claim-list">
+                <h3>Extracted entities and dates</h3>
+                <small>Extraction: {execution.entity_extraction_status}</small>
+                {[...execution.extracted_entities, ...execution.extracted_dates].map((item, index) => {
+                  const entityType = 'type' in item && typeof item.type === 'string' ? item.type : null;
+                  return (
+                    <article className="claim-item" key={`${item.source_index}-${item.value}-${index}`}>
+                      <div className="claim-heading">
+                        <strong>{item.value}</strong>
+                        {entityType && <span className="badge">{entityType}</span>}
+                        <span>Source {item.source_index}</span>
+                      </div>
+                      <blockquote>{item.quote}</blockquote>
+                    </article>
+                  );
+                })}
               </div>
             )}
             <pre className="report-text">{execution.report}</pre>
