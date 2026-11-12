@@ -180,6 +180,7 @@ def _persist_execution_result(
                 "statement": claim.statement,
                 "status": claim.status,
                 "verification_note": claim.verification_note,
+                "verification_agent_verdict": claim_data.get("verification_agent_verdict", "unavailable"),
                 "source_url": claim_data.get("source_url"),
                 "evidence_id": evidence_id,
             }
@@ -241,6 +242,7 @@ def _persist_execution_result(
         task_coverage=result.get("task_coverage", []),
         claims=persisted_claims,
         analysis=result.get("analysis", []),
+        verification_status=result.get("verification_status", "not_run"),
         agent_trace=result.get("agent_trace", []),
         search_status=result.get("search_status", "unknown"),
         model_status=result.get("model_status", "not_run"),

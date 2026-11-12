@@ -129,6 +129,9 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
     assert body["sources"] == 1
     assert body["model_status"] == "ready"
     assert body["claims"][0]["status"] == "supported"
+    assert body["verification_status"].startswith("fallback:")
+    assert body["claims"][0]["verification_agent_verdict"] == "unavailable"
+    assert "semantic AI review was unavailable" in body["claims"][0]["verification_note"]
     assert "Research workflow design" in body["report"]
     persisted = client.get(f"/research/projects/{project_id}/sources")
     assert persisted.status_code == 200
@@ -194,6 +197,11 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
             return '{"observations":[{"statement":"The two findings address related aspects.","relation":"related","claim_indices":[1,2]}]}'
         if "report-organization agent" in prompt:
             return '{"sections":[{"title":"Verified findings","claim_indices":[1,2]}]}'
+        if "You are the Verification Agent." in prompt:
+            reviews = [{"claim_index": 1, "verdict": "supports", "reason": "The excerpt directly states this."}]
+            if '"claim_index": 2' in prompt:
+                reviews.append({"claim_index": 2, "verdict": "supports", "reason": "The excerpt directly states this."})
+            return json.dumps({"reviews": reviews})
         if "Extract only concise factual claims" in prompt:
             claims = [{
                 "statement": "Initial evidence supports the objective.",
@@ -237,6 +245,9 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
     assert body["analysis"][0]["relation"] == "related"
     assert any(step["agent"] == "Supervisor" and step["status"] == "more_research" for step in body["agent_trace"])
     assert any(step["agent"] == "Research agent" for step in body["agent_trace"])
+    assert body["verification_status"] == "ready"
+    assert all(claim["verification_agent_verdict"] == "supports" for claim in body["claims"])
+    assert any(step["agent"] == "Verification Agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Analysis agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Report agent" for step in body["agent_trace"])
 
@@ -272,6 +283,66 @@ def test_unsupported_claim_is_not_persisted_as_evidence(monkeypatch) -> None:
     assert response.json()["summary"]["verified_claim_count"] == 0
     assert client.get(f"/research/projects/{project_id}/evidence").json() == []
     assert "No claims passed source-quote verification" in response.json()["report"]
+
+
+def test_verification_agent_rejects_overclaim_despite_exact_quote(monkeypatch) -> None:
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+    monkeypatch.setattr(
+        TavilySearchProvider,
+        "search",
+        lambda self, query, max_results=5: [{
+            "title": "Quarterly filing",
+            "url": "https://example.test/filing",
+            "snippet": "The company reported revenue rose 5% in the first quarter.",
+        }],
+    )
+
+    def fake_generate(self, prompt):
+        if "research planning agent" in prompt:
+            return '{"tasks":[{"title":"Review filing","description":"Find reported results.","search_query":"quarterly filing","estimated_minutes":10}]}'
+        if "You are the research agent." in prompt:
+            return json.dumps({
+                "task_results": [{
+                    "task_id": "step-1",
+                    "status": "partial",
+                    "findings": [{
+                        "statement": "Revenue doubled every quarter.",
+                        "quote": "The company reported revenue rose 5% in the first quarter.",
+                        "source_index": 1,
+                    }],
+                }]
+            })
+        if "Extract only concise factual claims" in prompt:
+            return json.dumps([{
+                "statement": "Revenue doubled every quarter.",
+                "quote": "The company reported revenue rose 5% in the first quarter.",
+                "source_index": 1,
+            }])
+        if "You are the Verification Agent." in prompt:
+            return json.dumps({
+                "reviews": [{
+                    "claim_index": 1,
+                    "verdict": "contradicts",
+                    "reason": "A 5% increase does not mean revenue doubled every quarter.",
+                }]
+            })
+        if "You are the research supervisor." in prompt:
+            return '{"needs_more_research":false,"follow_up_query":null}'
+        raise AssertionError("Unexpected model agent prompt")
+
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", fake_generate)
+    created = client.post(
+        "/research/projects",
+        json={"title": "Overclaim review", "objective": "Check the reported revenue change."},
+    ).json()
+
+    response = client.post(f"/research/projects/{created['id']}/execute")
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["claims"][0]["status"] == "unsupported"
+    assert result["claims"][0]["verification_agent_verdict"] == "contradicts"
+    assert client.get(f"/research/projects/{created['id']}/evidence").json() == []
 
 
 def test_failed_execution_resumes_from_saved_checkpoint(monkeypatch) -> None:

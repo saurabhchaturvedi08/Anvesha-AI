@@ -53,10 +53,12 @@ type Execution = {
     statement: string;
     status: string;
     verification_note: string;
+    verification_agent_verdict: string;
     source_url?: string | null;
     evidence_id?: number | null;
   }[];
   analysis: { statement: string; relation: string; claim_indices: number[] }[];
+  verification_status: string;
   agent_trace: { agent: string; status: string; detail: string }[];
   plan: Plan;
   search_status: string;
@@ -753,6 +755,7 @@ function App() {
               <span>Planning: {execution.plan.planning_mode?.replace('_', ' ') ?? 'template'}</span>
               <span>Search: {execution.search_status}</span>
               <span>Model: {execution.model_status}</span>
+              <span>AI verification: {execution.verification_status}</span>
               <span>Sources: {execution.summary.source_count}</span>
               <span>Verified claims: {execution.summary.verified_claim_count}</span>
             </div>
@@ -811,6 +814,7 @@ function App() {
                       <span className={`badge ${claim.status}`}>{claim.status}</span>
                     </div>
                     <p>{claim.verification_note}</p>
+                    <small>Verifier: {claim.verification_agent_verdict}</small>
                     {claim.evidence_id && <small>Evidence record {claim.evidence_id}</small>}
                   </article>
                 ))}

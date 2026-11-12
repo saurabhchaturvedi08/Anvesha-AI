@@ -28,7 +28,7 @@ Compares findings, identifies contradictions, and summarizes patterns with citat
 
 ### Verification Agent
 
-Validates whether cited evidence actually supports the claim; flags unsupported or conflicting assertions.
+Reviews whether each claim follows from its exact quoted source passage, considering negation, qualifiers, and scope. Its verdict can reject or qualify a claim, but cannot independently approve evidence: a separate deterministic gate requires a literal quote match before a claim can be marked supported. If the model reviewer is unavailable, the quote-match gate remains in effect and the fallback is visible.
 
 ### Report Agent
 
@@ -46,17 +46,18 @@ The workflow is a bounded, stateful LangGraph graph with explicit transitions:
 2. Plan tasks and targeted search queries
 3. Search and deduplicate sources
 4. Extract candidate claims
-5. Verify each claim against its source snippet
-6. Analyze relationships among verified claims
-7. Let the supervisor schedule bounded follow-up searches
-8. Organize verified claims into report sections
-9. Render and persist the cited report
+5. Have the Verification Agent assess whether each claim follows from its cited passage
+6. Require a deterministic exact-quote match and apply the verifier's rejection verdicts
+7. Analyze relationships among verified claims
+8. Let the supervisor schedule bounded follow-up searches
+9. Organize verified claims into report sections
+10. Render and persist the cited report
 
-The current research graph uses AI-generated planning, task-directed search, a Research Agent that maps source-backed findings to planned tasks, structured claim extraction, cross-claim analysis, supervisor-led follow-up search, and report organization. Research Agent findings must cite an existing plan task, a valid source index, and a literal quote in that source. Quote matching remains deterministic and is the gate for supported claims. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If an agent is unavailable or returns unusable output, its status is visible and the graph uses a constrained fallback or omits that agent's output.
+The current research graph uses AI-generated planning, task-directed search, a Research Agent that maps source-backed findings to planned tasks, structured claim extraction, semantic claim review, cross-claim analysis, supervisor-led follow-up search, and report organization. Research Agent findings must cite an existing plan task, a valid source index, and a literal quote in that source. The Verification Agent must review every candidate claim with a valid `supports`, `contradicts`, or `insufficient` verdict. Only a literal quote match combined with no rejecting AI verdict can be marked supported; AI approval alone can never satisfy evidence verification. If the Verification Agent is unavailable or returns an invalid/incomplete review, literal quote matching still applies and the response exposes that fallback. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If an agent is unavailable or returns unusable output, its status is visible and the graph uses a constrained fallback or omits that agent's output.
 
 The local-document follow-up graph plans up to three retrieval queries, gathers project-scoped excerpts, and lets the supervisor schedule at most one additional round. The answer agent must return exact quotes and valid excerpt indices; only literal quote matches are included in the answer. Both workflows expose an activity trace (agent, status, and action summary), never hidden chain-of-thought.
 
-Project creation, document upload, persistence, retrieval execution, quote verification, report rendering, and other CRUD/file operations are intentionally deterministic tool actions rather than AI decisions. AI is used for interpreting goals, selecting bounded work, comparing verified findings, and drafting evidence-linked answer claims.
+Project creation, document upload, persistence, retrieval execution, exact-quote verification, report rendering, and other CRUD/file operations are intentionally deterministic tool actions rather than AI decisions. AI is used for interpreting goals, selecting bounded work, evaluating semantic claim support, comparing verified findings, and drafting evidence-linked answer claims.
 
 ## State design
 

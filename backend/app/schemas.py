@@ -52,6 +52,7 @@ class ResearchExecutionResult(BaseModel):
     task_coverage: list[dict[str, Any]] = Field(default_factory=list)
     claims: list[dict[str, Any]] = Field(default_factory=list)
     analysis: list[dict[str, Any]] = Field(default_factory=list)
+    verification_status: str = "not_run"
     agent_trace: list[dict[str, str]] = Field(default_factory=list)
     search_status: str
     model_status: str
