@@ -430,9 +430,10 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     assert "SQLite" in retrieved.json()["results"][0]["text"]
 
     invalid_quote = False
+    semantic_reject = False
 
     def fake_generate(self, prompt):
-        nonlocal invalid_quote
+        nonlocal invalid_quote, semantic_reject
         if "local-document research planner" in prompt:
             return '{"queries":["SQLite full-text retrieval"]}'
         if "You are the research agent." in prompt:
@@ -451,6 +452,15 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
                 "quote": "SQLite FTS5 provides local full-text retrieval.",
                 "source_index": 1,
             }])
+        if "You are the Verification Agent for local-document answers." in prompt:
+            verdict = "contradicts" if semantic_reject else "supports"
+            return json.dumps({
+                "reviews": [{
+                    "claim_index": 1,
+                    "verdict": verdict,
+                    "reason": "The excerpt does not support this conclusion." if semantic_reject else "The excerpt directly states this.",
+                }]
+            })
         raise AssertionError("Unexpected follow-up agent prompt")
 
     monkeypatch.setattr(OpenAICompatibleModel, "generate", fake_generate)
@@ -466,7 +476,9 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
         "Retrieval agent",
         "Document supervisor",
         "Document answer agent",
+        "Verification Agent",
     ]
+    assert follow_up.json()["claims"][0]["verification_agent_verdict"] == "supports"
 
     invalid_quote = True
     unverified_follow_up = client.post(
@@ -475,7 +487,18 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
     )
     assert unverified_follow_up.status_code == 200
     assert unverified_follow_up.json()["claims"] == []
-    assert "quote verification" in unverified_follow_up.json()["answer"]
+    assert "quote and semantic verification" in unverified_follow_up.json()["answer"]
+
+    invalid_quote = False
+    semantic_reject = True
+    rejected_follow_up = client.post(
+        f"/research/projects/{project['id']}/follow-up",
+        json={"query": "What does this document say?"},
+    )
+    assert rejected_follow_up.status_code == 200
+    assert rejected_follow_up.json()["claims"][0]["status"] == "unsupported"
+    assert rejected_follow_up.json()["claims"][0]["verification_agent_verdict"] == "contradicts"
+    assert rejected_follow_up.json()["answer"].startswith("The retrieved excerpts did not contain")
 
     duplicate = client.post(
         f"/research/projects/{project['id']}/documents",

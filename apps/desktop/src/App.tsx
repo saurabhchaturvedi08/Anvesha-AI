@@ -78,7 +78,17 @@ type FollowUpResult = {
   retrieval_mode: string;
   embedding_status: string;
   model_status: string;
+  verification_status: string;
   sources: { index: number; filename: string; text: string }[];
+  claims: {
+    statement: string;
+    quote: string;
+    source_index: number;
+    status: string;
+    verification_agent_verdict: string;
+    verification_note: string;
+    filename: string;
+  }[];
   agent_trace: { agent: string; status: string; detail: string }[];
 };
 
@@ -691,6 +701,7 @@ function App() {
                 <span>Retrieval: {followUpResult.retrieval_mode}</span>
                 <span>Embeddings: {followUpResult.embedding_status}</span>
                 <span>Model: {followUpResult.model_status}</span>
+                <span>Verification: {followUpResult.verification_status}</span>
               </div>
               {followUpResult.agent_trace.length > 0 && (
                 <div className="agent-trace">
@@ -709,6 +720,17 @@ function App() {
                 </div>
               )}
               <pre className="report-text">{followUpResult.answer}</pre>
+              {followUpResult.claims.map((claim, index) => (
+                <article className="claim-item" key={`${claim.source_index}-${index}`}>
+                  <div className="claim-heading">
+                    <strong>{claim.statement}</strong>
+                    <span className={`badge ${claim.status}`}>{claim.status}</span>
+                  </div>
+                  <p>{claim.verification_note}</p>
+                  <small>Verifier: {claim.verification_agent_verdict}</small>
+                  <blockquote>{claim.quote}</blockquote>
+                </article>
+              ))}
               {followUpResult.sources.map((source) => (
                 <article className="source-item" key={source.index}>
                   <strong>[{source.index}] {source.filename}</strong>
