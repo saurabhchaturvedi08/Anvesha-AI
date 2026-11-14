@@ -248,6 +248,7 @@ def _persist_execution_result(
         verification_status=result.get("verification_status", "not_run"),
         agent_trace=result.get("agent_trace", []),
         search_status=result.get("search_status", "unknown"),
+        search_agent_status=result.get("search_agent_status", "not_run"),
         model_status=result.get("model_status", "not_run"),
     ).model_dump(mode="json")
 

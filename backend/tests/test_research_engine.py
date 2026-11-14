@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app.routers import research as research_routes
 from app.main import app
 from app.services.model_client import OpenAICompatibleModel
-from app.services.research_graph import extract_entities_and_dates
+from app.services.research_graph import extract_entities_and_dates, filter_search_results
 from app.services.search_provider import TavilySearchProvider
 
 client = TestClient(app)
@@ -182,6 +182,7 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
     body = response.json()
     assert body["sources"] == 1
     assert body["model_status"] == "ready"
+    assert body["search_agent_status"].startswith("fallback:")
     assert body["claims"][0]["status"] == "supported"
     assert body["verification_status"].startswith("fallback:")
     assert body["claims"][0]["verification_agent_verdict"] == "unavailable"
@@ -198,6 +199,80 @@ def test_execute_persists_search_sources(monkeypatch) -> None:
     history = client.get(f"/research/projects/{project_id}/executions").json()
     assert history[0]["id"] == body["execution_id"]
     assert history[0]["checkpoint_count"] >= 5
+
+
+def test_search_agent_filters_irrelevant_results(monkeypatch) -> None:
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: json.dumps({
+            "decisions": [
+                {"source_index": 1, "relevant": False, "reason": "This result discusses gardening, not research workflows."},
+                {"source_index": 2, "relevant": True, "reason": "This result directly discusses research workflow evidence."},
+            ]
+        }),
+    )
+    candidate_sources = [
+        {
+            "title": "Global gardening tips",
+            "url": "https://example.test/gardening",
+            "snippet": "Tips for growing tomatoes in small gardens.",
+        },
+        {
+            "title": "Relevant technical reference",
+            "url": "https://example.test/relevant",
+            "snippet": "Research workflow systems use source-linked evidence.",
+        },
+    ]
+
+    result = filter_search_results(
+        {
+            "objective": "Review research workflow evidence.",
+            "plan": {"tasks": []},
+            "candidate_sources": candidate_sources,
+        },
+        {},
+    )
+
+    assert result["search_agent_status"] == "ready"
+    assert result["sources"] == [candidate_sources[1]]
+    assert result["candidate_sources"] == []
+    assert result["search_status"] == "ready"
+
+
+def test_search_agent_reports_no_relevant_results(monkeypatch) -> None:
+    monkeypatch.setattr(TavilySearchProvider, "__init__", lambda self: setattr(self, "api_key", "test-key"))
+    monkeypatch.setattr(
+        TavilySearchProvider,
+        "search",
+        lambda self, query, max_results=5: [{
+            "title": "Unrelated gardening guide",
+            "url": "https://example.test/gardening",
+            "snippet": "Tips for growing tomatoes in small gardens.",
+        }],
+    )
+
+    def fake_generate(self, prompt):
+        if "research planning agent" in prompt:
+            return '{"tasks":[{"title":"Research workflow","description":"Find workflow evidence.","search_query":"research workflow evidence","estimated_minutes":10}]}'
+        if "You are the Search Agent." in prompt:
+            return '{"decisions":[{"source_index":1,"relevant":false,"reason":"The result is about gardening, not research workflows."}]}'
+        raise AssertionError("No downstream agent should run when every result is rejected")
+
+    monkeypatch.setattr(OpenAICompatibleModel, "generate", fake_generate)
+    created = client.post(
+        "/research/projects",
+        json={"title": "No relevant results", "objective": "Review research workflow evidence."},
+    ).json()
+
+    response = client.post(f"/research/projects/{created['id']}/execute")
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["search_agent_status"] == "ready"
+    assert result["search_status"] == "no_relevant_results"
+    assert result["sources"] == 0
+    assert "found no results relevant" in result["report"]
 
 
 def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
@@ -227,6 +302,13 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
                 '{"tasks":[{"title":"Gather initial evidence","description":"Search primary sources.",'
                 '"search_query":"initial evidence for the objective","estimated_minutes":15}]}'
             )
+        if "You are the Search Agent." in prompt:
+            return json.dumps({
+                "decisions": [
+                    {"source_index": 1, "relevant": True, "reason": "Relevant to the research objective."},
+                    *([{"source_index": 2, "relevant": True, "reason": "Relevant follow-up source."}] if '"source_index": 2' in prompt else []),
+                ]
+            })
         if "You are the research agent." in prompt:
             has_follow_up = '"source_index": 2' in prompt
             return json.dumps({
@@ -356,6 +438,8 @@ def test_verification_agent_rejects_overclaim_despite_exact_quote(monkeypatch) -
     def fake_generate(self, prompt):
         if "research planning agent" in prompt:
             return '{"tasks":[{"title":"Review filing","description":"Find reported results.","search_query":"quarterly filing","estimated_minutes":10}]}'
+        if "You are the Search Agent." in prompt:
+            return '{"decisions":[{"source_index":1,"relevant":true,"reason":"The filing reports company revenue results."}]}'
         if "You are the research agent." in prompt:
             return json.dumps({
                 "task_results": [{

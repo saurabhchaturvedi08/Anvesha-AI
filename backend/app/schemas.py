@@ -58,6 +58,7 @@ class ResearchExecutionResult(BaseModel):
     verification_status: str = "not_run"
     agent_trace: list[dict[str, str]] = Field(default_factory=list)
     search_status: str
+    search_agent_status: str = "not_run"
     model_status: str
 
 
