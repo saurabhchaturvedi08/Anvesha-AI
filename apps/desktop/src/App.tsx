@@ -71,6 +71,7 @@ type Execution = {
   plan: Plan;
   search_status: string;
   search_agent_status: string;
+  supervisor_status: string;
   model_status: string;
 };
 
@@ -786,6 +787,7 @@ function App() {
               <span>Planning: {execution.plan.planning_mode?.replace('_', ' ') ?? 'template'}</span>
               <span>Search: {execution.search_status}</span>
               <span>Search Agent: {execution.search_agent_status}</span>
+              <span>Supervisor: {execution.supervisor_status}</span>
               <span>Model: {execution.model_status}</span>
               <span>AI verification: {execution.verification_status}</span>
               <span>Sources: {execution.summary.source_count}</span>

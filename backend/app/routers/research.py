@@ -249,6 +249,7 @@ def _persist_execution_result(
         agent_trace=result.get("agent_trace", []),
         search_status=result.get("search_status", "unknown"),
         search_agent_status=result.get("search_agent_status", "not_run"),
+        supervisor_status=result.get("supervisor_status", "not_run"),
         model_status=result.get("model_status", "not_run"),
     ).model_dump(mode="json")
 

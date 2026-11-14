@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app.routers import research as research_routes
 from app.main import app
 from app.services.model_client import OpenAICompatibleModel
-from app.services.research_graph import extract_entities_and_dates, filter_search_results
+from app.services.research_graph import extract_entities_and_dates, filter_search_results, reflect_on_evidence
 from app.services.search_provider import TavilySearchProvider
 
 client = TestClient(app)
@@ -388,6 +388,50 @@ def test_supervisor_runs_bounded_follow_up_research(monkeypatch) -> None:
     assert any(step["agent"] == "Verification Agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Analysis agent" for step in body["agent_trace"])
     assert any(step["agent"] == "Report agent" for step in body["agent_trace"])
+    assert body["supervisor_status"] == "complete"
+
+
+def test_supervisor_does_not_repeat_completed_query(monkeypatch) -> None:
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: '{"needs_more_research":true,"follow_up_query":"  INITIAL   evidence query  "}',
+    )
+    result = reflect_on_evidence(
+        {
+            "objective": "Gather and verify evidence.",
+            "research_round": 1,
+            "max_rounds": 2,
+            "completed_queries": ["initial evidence query"],
+            "claims": [{"statement": "A verified finding.", "status": "supported"}],
+        },
+        {},
+    )
+
+    assert result["search_queries"] == []
+    assert result["supervisor_status"] == "fallback:ValueError"
+    assert result["agent_trace"][-1]["status"] == "fallback"
+
+
+def test_supervisor_rejects_malformed_decision(monkeypatch) -> None:
+    monkeypatch.setattr(
+        OpenAICompatibleModel,
+        "generate",
+        lambda self, prompt: '{"needs_more_research":"yes","follow_up_query":"find more"}',
+    )
+    result = reflect_on_evidence(
+        {
+            "objective": "Gather and verify evidence.",
+            "research_round": 1,
+            "max_rounds": 2,
+            "claims": [],
+        },
+        {},
+    )
+
+    assert result["search_queries"] == []
+    assert result["supervisor_status"] == "fallback:ValueError"
+    assert result["research_status"] == "insufficient_evidence"
 
 
 def test_unsupported_claim_is_not_persisted_as_evidence(monkeypatch) -> None:
