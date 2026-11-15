@@ -45,6 +45,8 @@ class ResearchExecutionResult(BaseModel):
     status: str
     summary: dict[str, Any]
     report: str
+    briefing_summary: str = ""
+    briefing_status: str = "not_run"
     sources: int
     source_details: list[dict[str, str]] = Field(default_factory=list)
     plan: dict[str, Any] = Field(default_factory=dict)

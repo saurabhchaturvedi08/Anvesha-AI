@@ -39,6 +39,8 @@ type Execution = {
   status: string;
   summary: { source_count: number; research_status: string; verified_claim_count: number };
   report: string;
+  briefing_summary: string;
+  briefing_status: string;
   source_details: { title: string; url: string; snippet: string }[];
   research_findings: {
     task_id: string;
@@ -793,6 +795,7 @@ function App() {
               <span>Search: {execution.search_status}</span>
               <span>Search Agent: {execution.search_agent_status}</span>
               <span>Supervisor: {execution.supervisor_status}</span>
+              <span>Briefing: {execution.briefing_status}</span>
               <span>Model: {execution.model_status}</span>
               <span>AI verification: {execution.verification_status}</span>
               <span>Sources: {execution.summary.source_count}</span>
@@ -859,6 +862,12 @@ function App() {
                     </article>
                   );
                 })}
+              </div>
+            )}
+            {execution.briefing_summary && (
+              <div className="claim-list">
+                <h3>Briefing summary</h3>
+                <pre className="report-text">{execution.briefing_summary}</pre>
               </div>
             )}
             <pre className="report-text">{execution.report}</pre>

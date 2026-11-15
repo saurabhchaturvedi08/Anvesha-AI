@@ -37,6 +37,8 @@ class ResearchState(TypedDict, total=False):
     analysis: list[dict[str, Any]]
     report_sections: list[dict[str, Any]]
     report: str
+    briefing_summary: str
+    briefing_status: str
     agent_trace: list[dict[str, str]]
     planning_status: str
     reflection_status: str
@@ -911,7 +913,43 @@ def create_report(state: ResearchState, config: RunnableConfig) -> dict[str, Any
         ),
         "agent_trace": _trace(state, "Report renderer", "ready", "Rendered the validated report outline with verified claims and citations."),
     }
-    _checkpoint(state, update, "report", "__end__", config)
+    _checkpoint(state, update, "report", "briefing", config)
+    return update
+
+
+def create_briefing_summary(state: ResearchState, config: RunnableConfig) -> dict[str, Any]:
+    supported = [claim for claim in state.get("claims", []) if claim.get("status") == "supported"]
+    summary = "No verified findings were available, so the briefing is incomplete."
+    briefing_status = "not_needed"
+    if supported:
+        prompt = (
+            "You are the Briefing Agent. Summarize the verified findings into a brief executive summary, using only the "
+            "supplied verified claims and cross-claim observations. Return only JSON with a summary string. Do not add "
+            "new facts, speculation, or outside knowledge.\n\n"
+            f"Objective: {state['objective']}\n"
+            f"Verified claims: {json.dumps(supported, ensure_ascii=False)}\n"
+            f"Cross-claim notes: {json.dumps(state.get('analysis', []), ensure_ascii=False)}"
+        )
+        try:
+            payload = _decode_json_object(OpenAICompatibleModel().generate(prompt))
+            raw_summary = payload.get("summary")
+            if not isinstance(raw_summary, str) or not raw_summary.strip():
+                raise ValueError("The briefing agent returned no summary")
+            summary = raw_summary.strip()[:2000]
+            briefing_status = "ready"
+        except (AssertionError, httpx.HTTPError, ValueError, KeyError, IndexError, AttributeError, TypeError) as exc:
+            briefing_status = f"fallback:{exc.__class__.__name__}"
+    update = {
+        "briefing_summary": summary,
+        "briefing_status": briefing_status,
+        "agent_trace": _trace(
+            state,
+            "Briefing agent",
+            "ready" if briefing_status == "ready" else "fallback" if briefing_status.startswith("fallback:") else "not_needed",
+            "Condensed the verified findings into a concise executive brief.",
+        ),
+    }
+    _checkpoint(state, update, "briefing", "__end__", config)
     return update
 
 
@@ -980,6 +1018,7 @@ def build_research_graph():
     graph.add_node("reflect", reflect_on_evidence)
     graph.add_node("report_plan", organize_report)
     graph.add_node("report", create_report)
+    graph.add_node("briefing", create_briefing_summary)
     graph.add_node("insufficient_report", create_insufficient_report)
     graph.add_node("no_sources_report", create_no_sources_report)
     graph.add_conditional_edges(
@@ -998,6 +1037,7 @@ def build_research_graph():
             "reflect": "reflect",
             "report_plan": "report_plan",
             "report": "report",
+            "briefing": "briefing",
             "insufficient_report": "insufficient_report",
             "no_sources_report": "no_sources_report",
         },
@@ -1025,7 +1065,8 @@ def build_research_graph():
         {"search": "search", "report": "report_plan", "insufficient_report": "insufficient_report"},
     )
     graph.add_edge("report_plan", "report")
-    graph.add_edge("report", END)
+    graph.add_edge("report", "briefing")
+    graph.add_edge("briefing", END)
     graph.add_edge("insufficient_report", END)
     graph.add_edge("no_sources_report", END)
     return graph.compile()

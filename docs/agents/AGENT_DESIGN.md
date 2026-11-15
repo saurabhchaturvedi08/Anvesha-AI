@@ -34,6 +34,10 @@ Reviews whether each claim follows from its exact quoted source passage, conside
 
 Organizes verified claim IDs into a report outline. The renderer uses only the referenced verified claims and their original citations.
 
+### Briefing Agent
+
+Distills the verified findings into a short executive summary using only supported claims and the cross-claim analysis. If there are no verified findings, it returns a non-empty incomplete status rather than inventing context.
+
 ### Document Follow-up Agents
 
 The local-document workflow uses a planner to propose retrieval queries, a retrieval tool agent to fetch project-scoped excerpts, a supervisor to decide whether to run one additional retrieval round, an answer agent to extract claims with exact quotes, and the Verification Agent to review semantic entailment. The deterministic exact-quote check is performed before review; AI can reject a claim, but only exact-quote matches can be considered supported.
@@ -52,7 +56,8 @@ The workflow is a bounded, stateful LangGraph graph with explicit transitions:
 8. Analyze relationships among verified claims
 9. Let the supervisor schedule bounded follow-up searches
 10. Organize verified claims into report sections
-11. Render and persist the cited report
+11. Distill the verified findings into a briefing summary
+12. Render and persist the cited report
 
 The current research graph uses AI-generated planning, task-directed provider search, Search Agent relevance screening, a Research Agent that maps source-backed findings to planned tasks, structured claim/entity/date extraction, semantic claim review, cross-claim analysis, supervisor-led follow-up search, and report organization. The Search Agent must return exactly one valid relevance decision for every candidate; incomplete or malformed output retains all candidates and exposes the fallback. If it rejects every candidate, the workflow reports that no relevant results were found. The Supervisor considers task coverage and verified findings when deciding whether to schedule another search. Its decisions and queries are validated, duplicate searches are rejected, and unusable output does not initiate a follow-up. Research Agent findings must cite an existing plan task, a valid source index, and a literal quote in that source. Extracted entities and dates are only surfaced when their exact quote and value match the cited source. The Verification Agent must review every candidate claim with a valid `supports`, `contradicts`, or `insufficient` verdict. Only a literal quote match combined with no rejecting AI verdict can be marked supported; AI approval alone can never satisfy evidence verification. If the Verification Agent is unavailable or returns an invalid/incomplete review, literal quote matching still applies and the response exposes that fallback. Quick, standard, and deep runs allow at most one, two, and three search rounds, respectively; each round searches at most three queries. The supervisor persists a checkpoint after each stage. Runs with no sources or no supported claims branch to an explicit incomplete report; they do not emit inferred findings. Failed or interrupted runs can resume from their most recent saved next-node state. If an agent is unavailable or returns unusable output, its status is visible and the graph uses a constrained fallback or omits that agent's output.
 
