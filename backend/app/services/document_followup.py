@@ -28,6 +28,7 @@ class FollowUpState(TypedDict, total=False):
     verification_status: str
     planner_status: str
     reflection_status: str
+    supervisor_status: str
     agent_trace: list[dict[str, str]]
 
 
@@ -126,6 +127,7 @@ def reflect_on_documents(state: FollowUpState) -> dict[str, Any]:
     sources = state.get("sources", [])
     query = None
     reflection_status = "complete"
+    supervisor_status = "complete"
     if state.get("round", 0) < 2:
         excerpts = "\n".join(f"[{source['index']}] {source['filename']}: {source['text']}" for source in sources)
         prompt = (
@@ -137,18 +139,34 @@ def reflect_on_documents(state: FollowUpState) -> dict[str, Any]:
         )
         try:
             payload = _decode_object(OpenAICompatibleModel().generate(prompt))
+            needs_more = payload.get("needs_more_research")
             proposed = payload.get("follow_up_query")
-            if payload.get("needs_more_research") is True and isinstance(proposed, str) and proposed.strip():
-                query = proposed.strip()[:500]
+            if not isinstance(needs_more, bool):
+                raise ValueError("The document supervisor returned no valid decision")
+            if needs_more:
+                if not isinstance(proposed, str) or not proposed.strip():
+                    raise ValueError("The document supervisor returned no follow-up query")
+                candidate_query = " ".join(proposed.split())
+                if len(candidate_query) > 500:
+                    raise ValueError("The document supervisor follow-up query exceeds 500 characters")
+                completed = {" ".join(item.split()).casefold() for item in state.get("search_queries", []) if isinstance(item, str)}
+                if candidate_query.casefold() in completed:
+                    raise ValueError("The document supervisor repeated a completed query")
+                query = candidate_query
+                supervisor_status = "ready"
+            elif proposed is not None:
+                raise ValueError("The document supervisor returned a query despite declining more retrieval")
         except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
-            reflection_status = f"unavailable:{exc.__class__.__name__}"
+            reflection_status = f"fallback:{exc.__class__.__name__}"
+            supervisor_status = reflection_status
     return {
         "search_queries": [query] if query else [],
         "reflection_status": reflection_status,
+        "supervisor_status": supervisor_status,
         "agent_trace": _trace(
             state,
             "Document supervisor",
-            "more_research" if query else "complete" if reflection_status == "complete" else "reflection_unavailable",
+            "more_research" if query else "complete" if reflection_status == "complete" else "fallback",
             f"Round {state.get('round', 0)} of 2; {'queued one focused local search' if query else 'no additional retrieval was scheduled'}.",
         ),
     }
@@ -352,6 +370,9 @@ def run_document_followup(db: Session, project_id: str, query: str, limit: int =
         "sources": result.get("sources", []),
         "claims": result.get("claims", []),
         "verification_status": result.get("verification_status", "not_run"),
+        "planner_status": result.get("planner_status", "not_run"),
+        "reflection_status": result.get("reflection_status", "not_run"),
+        "supervisor_status": result.get("supervisor_status", "not_run"),
         "agent_trace": result.get("agent_trace", []),
         "retrieval_mode": ", ".join(modes) if modes else "not_run",
         "embedding_status": "ready" if "ready" in embedding_statuses else (

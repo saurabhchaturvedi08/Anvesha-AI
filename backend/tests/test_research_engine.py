@@ -655,16 +655,19 @@ def test_document_ingestion_retrieval_and_follow_up(monkeypatch) -> None:
         json={"query": "How does SQLite support local retrieval?"},
     )
     assert follow_up.status_code == 200
-    assert "[1]" in follow_up.json()["answer"]
-    assert follow_up.json()["sources"][0]["filename"] == "notes.md"
-    assert [step["agent"] for step in follow_up.json()["agent_trace"]] == [
+    body = follow_up.json()
+    assert "[1]" in body["answer"]
+    assert body["sources"][0]["filename"] == "notes.md"
+    assert body["planner_status"] == "ready"
+    assert body["supervisor_status"] == "complete"
+    assert [step["agent"] for step in body["agent_trace"]] == [
         "Document planner",
         "Retrieval agent",
         "Document supervisor",
         "Document answer agent",
         "Verification Agent",
     ]
-    assert follow_up.json()["claims"][0]["verification_agent_verdict"] == "supports"
+    assert body["claims"][0]["verification_agent_verdict"] == "supports"
 
     invalid_quote = True
     unverified_follow_up = client.post(

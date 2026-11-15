@@ -87,6 +87,9 @@ type FollowUpResult = {
   answer: string;
   retrieval_mode: string;
   embedding_status: string;
+  planner_status: string;
+  reflection_status: string;
+  supervisor_status: string;
   model_status: string;
   verification_status: string;
   sources: { index: number; filename: string; text: string }[];
@@ -708,7 +711,9 @@ function App() {
           {followUpResult && (
             <div className="follow-up-result">
               <div className="execution-status">
+                <span>Planner: {followUpResult.planner_status}</span>
                 <span>Retrieval: {followUpResult.retrieval_mode}</span>
+                <span>Supervisor: {followUpResult.supervisor_status}</span>
                 <span>Embeddings: {followUpResult.embedding_status}</span>
                 <span>Model: {followUpResult.model_status}</span>
                 <span>Verification: {followUpResult.verification_status}</span>
