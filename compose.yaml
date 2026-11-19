@@ -1,0 +1,47 @@
+# Self-hosted Anvesha. Run `docker compose up --build` from the repository root,
+# then open http://localhost:8000/docs. Settings come from .env (see .env.example).
+
+name: anvesha
+
+x-backend-env: &backend-env
+  ANVESHA_ENV: ${ANVESHA_ENV:-production}
+  ANVESHA_DATABASE_URL: postgresql+asyncpg://anvesha:${POSTGRES_PASSWORD:-anvesha}@postgres:5432/anvesha
+  ANVESHA_CORS_ORIGINS: ${ANVESHA_CORS_ORIGINS:-http://localhost:3000}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: anvesha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anvesha}
+      POSTGRES_DB: anvesha
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anvesha -d anvesha"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./backend
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

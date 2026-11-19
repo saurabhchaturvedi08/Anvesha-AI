@@ -1,118 +1,87 @@
 # Anvesha
 
-Anvesha is an open-source, local-first agentic AI research platform for structured, evidence-backed investigations.
+Anvesha is an open-source agentic research platform for students, researchers, and anyone who needs answers they can trust. You ask a question. Agents plan the work, search the web and scholarly sources, read full pages and papers, and write a report where every claim links to a verified quote.
 
-## Mission
+Use it the way that suits you:
 
-Anvesha helps users turn broad research questions into structured, verifiable intelligence using local-first storage, provider-agnostic AI models, and a controlled research workflow.
+- **Self-host it for free** with your own API keys or local models (Ollama).
+- **Use the hosted version** with your own keys, your OpenRouter account, or a subscription.
+- **Use it from Claude, ChatGPT, or Gemini** by adding Anvesha as an MCP connector, so your existing AI subscription does the reasoning.
 
-## Current status
+## Status
 
-This repository is in the Phase 7 open-source launch preparation phase. The project is being scaffolded around:
+Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See the [v2 architecture plan](docs/architecture/V2_ARCHITECTURE_PLAN.md) for the design and roadmap.
 
-- Tauri 2 desktop app
-- React + TypeScript + Vite frontend
-- FastAPI backend with SQLAlchemy and SQLite
-- LangGraph-based research workflow
-- Local-first document and evidence storage
-- Release-ready contributor workflow and packaging validation
+- [x] **Phase 0: Foundation.** FastAPI backend, PostgreSQL, migrations, Docker Compose, CI.
+- [ ] Phase 1: Model gateway and bring-your-own-key
+- [ ] Phase 2: Research tools (web search, scholarly sources, page and PDF reading)
+- [ ] Phase 3: Multi-agent research graph
+- [ ] Phase 4: Web app
+- [ ] Phase 5: MCP server
+- [ ] Phases 6–8: Evals, hosted SaaS, desktop
+
+The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
+
+## Quick start (Docker)
+
+Requires [Docker](https://docs.docker.com/get-docker/).
+
+```bash
+cp .env.example .env        # change POSTGRES_PORT / API_PORT if those ports are taken
+docker compose up --build
+```
+
+Then open the API docs at <http://localhost:8000/docs>.
+
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/) (it installs the right Python version for you) and Docker for PostgreSQL.
+
+```bash
+docker compose up -d postgres         # database only
+cd backend
+uv sync                               # create the virtualenv and install dependencies
+uv run alembic upgrade head           # apply database migrations
+uv run uvicorn anvesha.api.app:create_app --factory --reload
+```
+
+Checks (the same ones CI runs):
+
+```bash
+uv run ruff check . && uv run ruff format --check .
+uv run mypy
+uv run pytest                         # uses a separate anvesha_test database
+```
+
+After changing a model in `src/anvesha/db/models/`, create a migration with
+`uv run alembic revision --autogenerate -m "describe the change"` and review the generated file.
 
 ## Repository layout
 
 ```text
-anvesha/
-├── apps/
-│   └── desktop/
-├── backend/
-│   ├── app/
-│   └── tests/
-├── packages/
-│   ├── shared-types/
-│   ├── api-contracts/
-│   └── ui/
-├── docs/
-│   ├── product/
-│   ├── architecture/
-│   ├── agents/
-│   ├── development/
-│   └── decisions/
-├── scripts/
-├── .github/
-├── .env.example
-├── .gitignore
-├── README.md
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md
-├── CHANGELOG.md
-└── LICENSE
+backend/
+  src/anvesha/
+    api/          FastAPI app, routers, request/response schemas
+    db/           SQLAlchemy models and session management
+    config.py     all settings (ANVESHA_* environment variables)
+    tenancy.py    users, workspaces, and request scoping
+  alembic/        database migrations
+  tests/
+docs/             architecture, decisions, product
+legacy/           v1 backend and desktop app (reference only)
+compose.yaml      self-hosted stack
 ```
 
-## Quick start
+## Principles
 
-### Prerequisites
-
-- Node.js 20+
-- npm 10+
-- Python 3.11+ (3.12 preferred)
-- Rust stable toolchain
-
-### Desktop app
-
-```bash
-cd apps/desktop
-npm install
-npm run tauri dev
-```
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
-```
-
-### Configure the agentic research flow
-
-Copy `.env.example` to `.env` and configure:
-
-- `TAVILY_API_KEY` for web search
-- `ANVESHA_MODEL_BASE_URL` and `ANVESHA_MODEL_NAME` for an OpenAI-compatible model endpoint (the default is local Ollama)
-- `ANVESHA_MODEL_API_KEY` when the selected model endpoint requires a key
-
-Create a research project in the desktop app and choose **Agent plan** to preview AI-generated tasks and search queries, or **Run agents** to start the full workflow. Planning, provider search, Search Agent result screening, mapping source findings to planned tasks, claim/entity/date extraction, semantic claim review, analysis of verified claims, supervisor-led follow-up, report organization, and a final briefing pass run as bounded stages. The Search Agent selects relevant results against the objective and planned tasks; invalid or unavailable model responses retain provider results and are shown as a fallback. The Supervisor considers task coverage and verified findings when proposing a focused follow-up, rejects repeated or invalid queries, and reports its status in the execution result. Extracted entities and dates include matched source quotes. A deterministic exact-quote match is still required for claim support; the Verification Agent can reject a misleading claim but cannot approve an unmatched quote. Quote matching and report rendering remain deterministic safeguards. The Briefing Agent summarizes only verified evidence and surfaces an incomplete status when no supported findings exist. The supervisor may request follow-up searches according to the selected depth (up to one, two, or three rounds for quick, standard, or deep research).
-Local-document follow-up also uses a planner, project-scoped retrieval, a bounded supervisor, an answer agent, and the Verification Agent. Answers only include statements with exact quote matches that are not rejected by semantic review; if that review is unavailable, the UI shows the exact-quote-only fallback. Both workflows show agent activity in the desktop. Creating projects, uploading documents, and persistence remain regular user-controlled data operations; they do not need an AI agent.
-
-If the planning model is unavailable, Anvesha marks the run as using a template fallback. Missing search configuration or insufficient verified evidence produces an explicit incomplete report rather than unsupported findings.
-
-## Development principles
-
-- Local-first by default
-- Evidence-backed research over convincing output
-- Provider abstraction for LLMs and search services
-- Structured agent state with durable checkpoints
-- Privacy-first configuration and secure secret handling
-
-## Open-source launch checklist
-
-Anvesha is preparing for a public v0.1.0 milestone. Before a release, we verify:
-
-- backend regression tests pass
-- frontend production build passes
-- Tauri Windows installers build successfully
-- changelog and release notes are updated
-- security and contribution guidance are current
-- release notes clearly describe known limitations and setup requirements
-
-See [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md) for the current launch checklist and [docs/release/RELEASE_NOTES_v0.1.0.md](docs/release/RELEASE_NOTES_v0.1.0.md) for the public release notes.
+- **Evidence over eloquence.** A claim is only reported if its quote is found in the source. The AI can reject claims but never approve its own.
+- **Bring your own model.** Any provider, any key, or fully local.
+- **Open by default.** Everything needed to run Anvesha yourself is in this repository.
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull request expectations, and validation steps.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+[GNU Affero General Public License v3.0](LICENSE). You can use, modify, and self-host Anvesha freely. If you offer a modified version to others as a hosted service, you must publish your changes under the same license.

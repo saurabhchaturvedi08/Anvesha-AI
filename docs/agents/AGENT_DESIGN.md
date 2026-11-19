@@ -1,5 +1,7 @@
 # Agent Design
 
+> **Superseded (v1).** This describes the v1 design. The current design is in [V2_ARCHITECTURE_PLAN.md](../architecture/V2_ARCHITECTURE_PLAN.md).
+
 ## Agent hierarchy
 
 ### Supervisor Agent

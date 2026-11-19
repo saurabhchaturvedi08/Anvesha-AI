@@ -38,3 +38,7 @@ data/
 # Build artifacts
 *.log
 coverage/
+
+# Python tool caches
+.mypy_cache/
+.ruff_cache/

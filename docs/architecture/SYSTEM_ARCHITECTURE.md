@@ -1,5 +1,7 @@
 # System Architecture
 
+> **Superseded (v1).** This describes the v1 design. The current design is in [V2_ARCHITECTURE_PLAN.md](../architecture/V2_ARCHITECTURE_PLAN.md).
+
 ## Overview
 
 Anvesha is a modular monorepo that separates desktop client concerns, backend services, shared contracts, and long-running research orchestration.

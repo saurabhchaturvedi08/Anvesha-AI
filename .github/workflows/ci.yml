@@ -2,39 +2,51 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
 
 jobs:
-  backend-tests:
+  backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: anvesha
+          POSTGRES_PASSWORD: anvesha
+          POSTGRES_DB: anvesha
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U anvesha"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ANVESHA_DATABASE_URL: postgresql+asyncpg://anvesha:anvesha@localhost:5432/anvesha
+      ANVESHA_REQUIRE_DB: "1"
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.11"
-      - name: Install backend dependencies
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Lint
         run: |
-          cd backend
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run backend tests
-        run: |
-          cd backend
-          pytest -q
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Type-check
+        run: uv run mypy
+      - name: Test
+        run: uv run pytest -q
 
-  desktop-build:
+  docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Install frontend dependencies
-        run: |
-          cd apps/desktop
-          npm install
-      - name: Build frontend
-        run: |
-          cd apps/desktop
-          npm run build
+      - name: Build backend image
+        run: docker build backend

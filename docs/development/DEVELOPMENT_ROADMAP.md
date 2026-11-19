@@ -1,5 +1,7 @@
 # Development Roadmap
 
+> **Superseded (v1).** This describes the v1 design. The current design is in [V2_ARCHITECTURE_PLAN.md](../architecture/V2_ARCHITECTURE_PLAN.md).
+
 ## Repository assessment
 
 The repository began empty, which is a good starting point for a clean, disciplined architecture. The first task is to create the engineering foundation: the Tauri desktop app, FastAPI backend, documentation, and a reproducible local development setup.

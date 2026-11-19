@@ -14,44 +14,29 @@ Thank you for contributing to Anvesha. We are building an open-source, local-fir
 
 ## Setup
 
-1. Fork the repository.
-2. Clone your fork locally.
-3. Install Node.js 20+, Python 3.11+, and Rust stable.
-4. Follow the setup instructions in the project README.
-5. Create a local virtual environment for the backend and install dependencies.
+1. Fork the repository and clone your fork.
+2. Install [uv](https://docs.astral.sh/uv/) and [Docker](https://docs.docker.com/get-docker/).
+3. Follow the **Development** section of the [README](README.md).
 
 ## Development workflow
 
 - Keep changes focused and small.
 - Prefer evidence-driven fixes over speculative changes.
-- Write tests for new behavior.
+- Write tests for new behavior. API and database tests run against real PostgreSQL.
+- Every model change needs an Alembic migration (`test_models_match_migrations` enforces this).
 - Keep secrets out of the repository.
-- Document non-obvious decisions.
-- Update release notes when the public behavior or release status changes.
+- Document non-obvious decisions in `docs/decisions/`.
 
 ## Local validation
 
-Before opening a pull request, run the relevant checks:
+Before opening a pull request, run the same checks as CI:
 
 ```bash
+docker compose up -d postgres
 cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-pytest -q
-```
-
-```bash
-cd apps/desktop
-npm install
-npm run build
-```
-
-For Windows packaging validation:
-
-```bash
-cd apps/desktop
-npm run tauri:build:windows
+uv run ruff check . && uv run ruff format --check .
+uv run mypy
+uv run pytest
 ```
 
 ## Pull requests

@@ -1,24 +1,13 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
+from httpx import AsyncClient
 
 
-def test_health_endpoint() -> None:
-    response = client.get("/health")
+async def test_liveness(client: AsyncClient) -> None:
+    response = await client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json() == {"status": "ok"}
 
 
-def test_tauri_origin_is_allowed_for_local_api() -> None:
-    response = client.options(
-        "/research/projects",
-        headers={
-            "Origin": "http://tauri.localhost",
-            "Access-Control-Request-Method": "POST",
-        },
-    )
-
+async def test_readiness_checks_database(client: AsyncClient) -> None:
+    response = await client.get("/health/ready")
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
+    assert response.json() == {"status": "ready", "database": "ok"}

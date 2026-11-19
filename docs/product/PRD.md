@@ -1,5 +1,7 @@
 # Product Requirements Document (PRD)
 
+> **Superseded (v1).** This describes the v1 design. The current design is in [V2_ARCHITECTURE_PLAN.md](../architecture/V2_ARCHITECTURE_PLAN.md).
+
 ## Repository assessment
 
 The repository was effectively empty when the project began, so the first obligation was to establish a disciplined engineering foundation instead of building feature work prematurely. The chosen stack aligns with the product goals: a Tauri desktop shell for local-first installation, a FastAPI backend for research orchestration and persistence, and a modular, local-first data model for evidence, research artifacts, and model provider configuration.
