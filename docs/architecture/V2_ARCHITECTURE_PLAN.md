@@ -61,7 +61,7 @@ Plus plain BYOK: paste an OpenAI, Anthropic, Google, Groq, or other key, or poin
 | Layer | Choice | Why |
 |---|---|---|
 | Agent orchestration | **LangGraph** (keep) | Durable checkpoints, human-in-the-loop `interrupt()`, parallel fan-out (`Send`), time-travel debugging. The team already knows it. Use it *properly*: native checkpointer, tool-calling agents inside nodes. |
-| Model gateway | **LiteLLM** (Python SDK; proxy later for SaaS) | One API for 100+ providers (OpenAI, Anthropic, Gemini, OpenRouter, Groq, Ollama, Bedrock…). Per-request `api_key`, so BYOK is trivial. Built-in cost tracking feeds billing and budgets. |
+| Model gateway | **Own thin gateway on the official `openai` and `anthropic` SDKs**, prices from Pydantic's **genai-prices** | One OpenAI-compatible adapter covers OpenAI, Gemini, OpenRouter, Groq, Mistral, Ollama and custom servers; a native adapter covers Anthropic. LiteLLM was the first choice, but its release pipeline was compromised twice in 2026 (credential-stealing releases 1.82.7/1.82.8 in March and 1.107.0 in October), which is unacceptable for a service that holds users' API keys. |
 | Structured output | **Pydantic v2 schemas + native tool calling** | Replaces all hand-parsed JSON. |
 | API | **FastAPI** (keep), fully async | Already in use; OpenAPI drives the generated TS client. |
 | Background jobs | **Procrastinate** (Postgres-backed async job queue) + separate worker process | Runs graphs outside the request. No extra infrastructure, since the queue lives in Postgres. (arq was the first choice, but it is in maintenance-only mode.) LangGraph checkpoints make jobs resumable after crashes. |
@@ -78,7 +78,7 @@ Plus plain BYOK: paste an OpenAI, Anthropic, Google, Groq, or other key, or poin
 | MCP server | **Official MCP Python SDK** (Streamable HTTP + OAuth) | "Use Anvesha from Claude / ChatGPT / Gemini". |
 | Observability | **Langfuse** (self-hostable) + OpenTelemetry | Traces every agent step, token, and cost. |
 | Evals | Small golden-question set + citation-accuracy metrics in CI | Without this you can't safely change prompts or models. |
-| Billing (SaaS only) | **Stripe** or **Paddle** (merchant of record); **Razorpay** for INR | Credits ledger fed by LiteLLM cost tracking. |
+| Billing (SaaS only) | **Stripe** or **Paddle** (merchant of record); **Razorpay** for INR | Credits ledger fed by the gateway's `usage_events`. |
 | Python tooling | **uv**, ruff, mypy/pyright, pytest | Fast and reproducible. |
 | JS tooling | **pnpm** workspaces | |
 | Desktop (later) | **Tauri** shell wrapping the web app | Keep the existing Tauri work, but as a thin wrapper, not a separate UI. |
@@ -117,7 +117,7 @@ Plus plain BYOK: paste an OpenAI, Anthropic, Google, Groq, or other key, or poin
                          │   │          writer, assistant)            │
                          │   ├─ tools/  (search, fetch, scholar,      │
                          │   │          docs, evidence)               │
-                         │   └─ llm/    (LiteLLM gateway, key vault,  │
+                         │   └─ llm/    (model gateway, key vault,    │
                          │              per-role routing, budgets)    │
                          └──────┬──────────────┬──────────────────────┘
                                 ▼              ▼
@@ -213,7 +213,8 @@ resolve_model(user, role) →
 ```
 
 - Keys are encrypted at rest (AES-GCM with a per-deployment master key from env or KMS). They are never logged, never returned to the browser after saving, and are validated with a real cheap test call (unlike the current fake validation).
-- Every LLM call goes through `llm/gateway.py` (a LiteLLM wrapper). It records tokens and cost to `usage_events`, which drives per-run budgets and SaaS billing.
+- Every LLM call goes through `llm/gateway.py`. It records tokens and cost to `usage_events`, which drives per-run budgets and SaaS billing.
+- Supply-chain guard: `uv` ignores package releases younger than 7 days (`exclude-newer`), and the lockfile pins hashes.
 
 ---
 
@@ -263,7 +264,7 @@ anvesha/
 │   │   │                       evidence.py  (one registry; reused by agents AND MCP)
 │   │   ├── search/             providers: searxng, tavily, brave, exa
 │   │   ├── scholar/            openalex, semantic_scholar, arxiv, crossref, pubmed
-│   │   ├── llm/                gateway (LiteLLM), key_vault, routing, usage
+│   │   ├── llm/                gateway, adapters, catalog, credentials, budgets, pricing
 │   │   ├── ingest/             docling/pymupdf parsing, chunking, embeddings
 │   │   ├── verify/             deterministic quote matching (ported from v1)
 │   │   ├── db/                 SQLAlchemy models, session, repositories
@@ -291,7 +292,7 @@ anvesha/
 
 ### SaaS deployment (start cheap, scale later)
 - **Stage 1 (≈$30–80/mo):** Next.js on Vercel; API and worker on Fly.io / Railway / one Hetzner VPS running Docker; Neon or Supabase Postgres (pgvector); Cloudflare R2; Langfuse Cloud free tier.
-- **Stage 2:** autoscaling workers, LiteLLM proxy for platform-key budgets, Kubernetes/Helm only once it's actually needed.
+- **Stage 2:** autoscaling workers, per-workspace rate limits for platform keys, Kubernetes/Helm only once it's actually needed.
 
 ---
 
@@ -302,7 +303,7 @@ Each phase ends with something runnable and tests passing.
 | Phase | Goal | Key deliverables | Est. |
 |---|---|---|---|
 | **0. Foundation** ✅ | New skeleton, no feature loss in concept | uv + `src/anvesha` layout, config, Postgres + Alembic, root `compose.yaml` (postgres, migrate, api), local single-user tenancy, projects API, CI. MinIO and SearXNG join in Phase 2, when something uses them. | 1 wk |
-| **1. LLM gateway + BYOK** | Any model, per user, per role | LiteLLM gateway, encrypted key vault, real key validation, usage tracking, budgets | 1 wk |
+| **1. LLM gateway + BYOK** ✅ | Any model, per user, per role | Gateway on official SDKs (8 providers), AES-GCM key vault with auto-generated master key, free key validation via model lists, per-role model preferences, deployment-wide fallback keys, usage tracking, budgets, `/llm/test` endpoint | 1 wk |
 | **2. Tools layer** | Agents can see the real world | Search providers (SearXNG default), scholarly APIs, safe `fetch_page` + extraction, PDF ingest, chunk/embed/hybrid search, verification module ported | 1.5 wk |
 | **3. Agent graph v2** | Real agentic research | Lead/Researcher/Verifier/Writer, `Send` fan-out, `interrupt()` plan approval, PostgresSaver, Procrastinate worker, SSE events, fake-LLM graph tests | 2 wk |
 | **4. Web app** | Easy to use | Next.js app: new research wizard, live agent activity view, plan approval, report with hoverable citations, sources/evidence explorer, chat with project, settings/keys | 2 wk |

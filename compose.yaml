@@ -7,6 +7,20 @@ x-backend-env: &backend-env
   ANVESHA_ENV: ${ANVESHA_ENV:-production}
   ANVESHA_DATABASE_URL: postgresql+asyncpg://anvesha:${POSTGRES_PASSWORD:-anvesha}@postgres:5432/anvesha
   ANVESHA_CORS_ORIGINS: ${ANVESHA_CORS_ORIGINS:-http://localhost:3000}
+  # Master key for encrypting stored API keys. Leave unset to auto-generate one into the
+  # anvesha-secrets volume on first start (back that volume up, or set this explicitly).
+  ANVESHA_SECRET_KEY: ${ANVESHA_SECRET_KEY:-}
+  ANVESHA_SECRET_KEY_FILE: /var/lib/anvesha/secret.key
+  # Optional server-wide provider keys (used when a workspace hasn't added its own).
+  ANVESHA_OPENAI_API_KEY: ${ANVESHA_OPENAI_API_KEY:-}
+  ANVESHA_ANTHROPIC_API_KEY: ${ANVESHA_ANTHROPIC_API_KEY:-}
+  ANVESHA_GEMINI_API_KEY: ${ANVESHA_GEMINI_API_KEY:-}
+  ANVESHA_OPENROUTER_API_KEY: ${ANVESHA_OPENROUTER_API_KEY:-}
+  ANVESHA_GROQ_API_KEY: ${ANVESHA_GROQ_API_KEY:-}
+  ANVESHA_MISTRAL_API_KEY: ${ANVESHA_MISTRAL_API_KEY:-}
+  # To use Ollama running on your computer, set this in .env to
+  # http://host.docker.internal:11434/v1
+  ANVESHA_OLLAMA_BASE_URL: ${ANVESHA_OLLAMA_BASE_URL:-}
 
 services:
   postgres:
@@ -38,6 +52,10 @@ services:
     environment: *backend-env
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - anvesha-secrets:/var/lib/anvesha
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -45,3 +63,4 @@ services:
 
 volumes:
   pgdata:
+  anvesha-secrets:

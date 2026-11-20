@@ -42,3 +42,6 @@ coverage/
 # Python tool caches
 .mypy_cache/
 .ruff_cache/
+
+# Locally generated master key (see ANVESHA_SECRET_KEY_FILE)
+.anvesha/

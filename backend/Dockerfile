@@ -19,7 +19,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
-RUN useradd --create-home --uid 1000 anvesha
+RUN useradd --create-home --uid 1000 anvesha     && mkdir -p /var/lib/anvesha     && chown anvesha /var/lib/anvesha
 USER anvesha
 
 EXPOSE 8000
