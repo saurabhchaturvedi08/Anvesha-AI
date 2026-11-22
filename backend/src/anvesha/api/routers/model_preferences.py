@@ -6,7 +6,7 @@ from anvesha.api.schemas.llm import ModelPreferenceRead, ModelPreferenceWrite
 from anvesha.db.models import ModelPreference
 from anvesha.llm.catalog import get_provider
 from anvesha.llm.credentials import resolve_access
-from anvesha.llm.types import AGENT_ROLES, AgentRole
+from anvesha.llm.types import MODEL_ROLES, ModelRole
 
 router = APIRouter(prefix="/api/v1/model-preferences", tags=["model preferences"])
 
@@ -25,13 +25,13 @@ async def list_model_preferences(
             provider=by_role[role].provider if role in by_role else None,
             model=by_role[role].model if role in by_role else None,
         )
-        for role in AGENT_ROLES
+        for role in MODEL_ROLES
     ]
 
 
 @router.put("/{role}", response_model=ModelPreferenceRead)
 async def set_model_preference(
-    role: AgentRole,
+    role: ModelRole,
     payload: ModelPreferenceWrite,
     session: SessionDep,
     principal: PrincipalDep,
@@ -42,6 +42,11 @@ async def set_model_preference(
     if spec is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown provider {payload.provider!r}"
+        )
+    if role == "embedding" and spec.api_style != "openai":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{spec.name} has no embeddings API. Choose another provider for embeddings.",
         )
     if await resolve_access(session, settings, vault, principal.workspace_id, spec.id) is None:
         raise HTTPException(
@@ -61,7 +66,7 @@ async def set_model_preference(
 
 @router.delete("/{role}", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_model_preference(
-    role: AgentRole, session: SessionDep, principal: PrincipalDep
+    role: ModelRole, session: SessionDep, principal: PrincipalDep
 ) -> Response:
     preference = await session.get(ModelPreference, (principal.workspace_id, role))
     if preference is not None:

@@ -10,7 +10,7 @@ from anvesha.crypto import DecryptionError, SecretBox
 from anvesha.db.models import ModelPreference, ProviderCredential
 from anvesha.llm.catalog import ProviderSpec, deployment_access, get_provider
 from anvesha.llm.errors import ModelNotConfiguredError
-from anvesha.llm.types import AgentRole, ModelRoute, ProviderAccess
+from anvesha.llm.types import ModelRole, ModelRoute, ProviderAccess
 
 
 def credential_aad(workspace_id: uuid.UUID, provider: str) -> str:
@@ -86,7 +86,7 @@ async def resolve_route(
     settings: Settings,
     vault: SecretBox | None,
     workspace_id: uuid.UUID,
-    role: AgentRole,
+    role: ModelRole,
 ) -> ModelRoute:
     preference = await session.get(ModelPreference, (workspace_id, role))
     if preference is None:

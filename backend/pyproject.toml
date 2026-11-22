@@ -17,6 +17,11 @@ dependencies = [
   "httpx2>=2.9,<3",
   "cryptography>=44",
   "genai-prices>=0.2",
+  "trafilatura>=2.0",
+  "pgvector>=0.3",
+  "python-multipart>=0.0.18",
+  "defusedxml>=0.7",
+  "pypdfium2>=4.30",
 ]
 
 [dependency-groups]

@@ -1,7 +1,9 @@
 """Errors raised by the model layer. ``http_status`` drives the API's error responses."""
 
+from anvesha.errors import AppError
 
-class LLMError(Exception):
+
+class LLMError(AppError):
     code = "llm_error"
     http_status = 502
     retryable = False

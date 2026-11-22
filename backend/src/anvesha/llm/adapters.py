@@ -1,6 +1,7 @@
 """Chat adapters: translate provider-neutral messages to each provider's API and back."""
 
 import json
+import math
 from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
@@ -18,7 +19,15 @@ from anvesha.llm.errors import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
-from anvesha.llm.types import Completion, Message, ModelRoute, TokenUsage, ToolCall, ToolSpec
+from anvesha.llm.types import (
+    Completion,
+    Embeddings,
+    Message,
+    ModelRoute,
+    TokenUsage,
+    ToolCall,
+    ToolSpec,
+)
 
 DEFAULT_MAX_TOKENS = 4096
 
@@ -34,6 +43,12 @@ class ChatAdapter(Protocol):
         temperature: float | None = None,
         request_timeout: float,
     ) -> Completion: ...
+
+
+class EmbeddingAdapter(Protocol):
+    async def embed(
+        self, route: ModelRoute, texts: Sequence[str], *, request_timeout: float
+    ) -> Embeddings: ...
 
 
 def _map_sdk_error(exc: Exception, provider: str) -> LLMError:
@@ -60,6 +75,48 @@ class OpenAICompatibleAdapter:
         self._http = http_client
         self._max_retries = max_retries
 
+    def _client(self, route: ModelRoute) -> openai.AsyncOpenAI:
+        return openai.AsyncOpenAI(
+            # Local servers accept any key, but the SDK requires a non-empty one.
+            api_key=route.access.api_key or "not-needed",
+            base_url=route.access.api_base,
+            max_retries=self._max_retries,
+            http_client=self._http,
+        )
+
+    async def embed(
+        self, route: ModelRoute, texts: Sequence[str], *, request_timeout: float
+    ) -> Embeddings:
+        provider = route.access.provider
+        try:
+            response = await self._client(route).embeddings.create(
+                model=route.model,
+                input=list(texts),
+                encoding_format="float",
+                timeout=request_timeout,
+            )
+        except openai.OpenAIError as exc:
+            raise _map_sdk_error(exc, provider) from exc
+
+        rows = sorted(response.data, key=lambda row: row.index)
+        vectors = [list(row.embedding) for row in rows]
+        if len(vectors) != len(texts):
+            raise LLMInvalidResponseError(
+                f"{provider}: expected {len(texts)} embeddings, got {len(vectors)}"
+            )
+        dimensions = {len(vector) for vector in vectors}
+        if len(dimensions) > 1 or 0 in dimensions:
+            raise LLMInvalidResponseError(f"{provider}: embeddings have inconsistent sizes")
+        if not all(math.isfinite(value) for vector in vectors for value in vector):
+            raise LLMInvalidResponseError(f"{provider}: embeddings contain non-finite values")
+        usage = response.usage
+        return Embeddings(
+            vectors=[[float(value) for value in vector] for vector in vectors],
+            usage=TokenUsage(input_tokens=usage.prompt_tokens if usage else 0),
+            provider=provider,
+            model=response.model or route.model,
+        )
+
     async def complete(
         self,
         route: ModelRoute,
@@ -71,13 +128,7 @@ class OpenAICompatibleAdapter:
         request_timeout: float,
     ) -> Completion:
         access = route.access
-        client = openai.AsyncOpenAI(
-            # Local servers accept any key, but the SDK requires a non-empty one.
-            api_key=access.api_key or "not-needed",
-            base_url=access.api_base,
-            max_retries=self._max_retries,
-            http_client=self._http,
-        )
+        client = self._client(route)
         params: dict[str, Any] = {
             "model": route.model,
             "messages": [_to_openai_message(message) for message in messages],

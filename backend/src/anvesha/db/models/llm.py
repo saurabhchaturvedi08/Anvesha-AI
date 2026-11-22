@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from anvesha.db.base import Base, Timestamps, UUIDPrimaryKey
-from anvesha.llm.types import AGENT_ROLES
+from anvesha.llm.types import MODEL_ROLES
 
 
 class ProviderCredential(UUIDPrimaryKey, Timestamps, Base):
@@ -44,10 +44,10 @@ class ProviderCredential(UUIDPrimaryKey, Timestamps, Base):
 
 
 class ModelPreference(Timestamps, Base):
-    """Which provider and model each agent role uses in a workspace."""
+    """Which provider and model each role (agents, embeddings) uses in a workspace."""
 
     __tablename__ = "model_preferences"
-    __table_args__ = (CheckConstraint(f"role IN {AGENT_ROLES!r}", name="role"),)
+    __table_args__ = (CheckConstraint(f"role IN {MODEL_ROLES!r}", name="role"),)
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True

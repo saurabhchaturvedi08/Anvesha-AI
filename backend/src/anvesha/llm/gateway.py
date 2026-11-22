@@ -15,13 +15,25 @@ from anvesha.config import Settings
 from anvesha.crypto import SecretBox
 from anvesha.db.models import ProviderCredential, UsageEvent
 from anvesha.db.session import Database
-from anvesha.llm.adapters import ChatAdapter
+from anvesha.llm.adapters import ChatAdapter, EmbeddingAdapter
 from anvesha.llm.budget import Budget
 from anvesha.llm.catalog import PROVIDERS
 from anvesha.llm.credentials import resolve_route
-from anvesha.llm.errors import LLMAuthError, LLMError
+from anvesha.llm.errors import LLMAuthError, LLMError, ModelNotConfiguredError
 from anvesha.llm.pricing import estimate_cost_usd
-from anvesha.llm.types import AgentRole, Completion, Message, ModelRoute, TokenUsage, ToolSpec
+from anvesha.llm.types import (
+    AgentRole,
+    Completion,
+    Embeddings,
+    Message,
+    ModelRole,
+    ModelRoute,
+    TokenUsage,
+    ToolSpec,
+)
+
+# Most embedding APIs accept up to a few hundred inputs per request; stay well under.
+EMBEDDING_BATCH_SIZE = 64
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +45,13 @@ class LLMGateway:
         settings: Settings,
         vault: SecretBox | None,
         adapters: Mapping[str, ChatAdapter],
+        embedder: EmbeddingAdapter | None = None,
     ) -> None:
         self._db = db
         self._settings = settings
         self._vault = vault
         self._adapters = adapters  # keyed by ProviderSpec.api_style
+        self._embedder = embedder  # OpenAI-compatible providers; Anthropic has no embeddings
 
     async def complete(
         self,
@@ -83,11 +97,87 @@ class LLMGateway:
         )
         return replace(completion, cost_usd=cost)
 
+    async def embedding_route(self, workspace_id: uuid.UUID) -> ModelRoute | None:
+        """The workspace's embedding model, or None when it hasn't chosen one."""
+        try:
+            return await self._embedding_route(workspace_id)
+        except ModelNotConfiguredError:
+            return None
+
+    async def _embedding_route(self, workspace_id: uuid.UUID) -> ModelRoute:
+        async with self._db.session() as session:
+            route = await resolve_route(
+                session, self._settings, self._vault, workspace_id, "embedding"
+            )
+        if PROVIDERS[route.access.provider].api_style != "openai" or self._embedder is None:
+            raise ModelNotConfiguredError(
+                f"{PROVIDERS[route.access.provider].name} has no embeddings API. "
+                "Choose another provider for the embedding role."
+            )
+        return route
+
+    async def embed(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        texts: Sequence[str],
+        budget: Budget | None = None,
+        project_id: uuid.UUID | None = None,
+    ) -> Embeddings:
+        """Embed texts with the workspace's embedding model, in batches.
+
+        Raises ModelNotConfiguredError when no embedding model is set up.
+        """
+        route = await self._embedding_route(workspace_id)
+        assert self._embedder is not None  # checked by _embedding_route
+        spec = PROVIDERS[route.access.provider]
+        vectors: list[list[float]] = []
+        input_tokens = 0
+        total_cost: Decimal | None = Decimal(0)
+        for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+            if budget is not None:
+                budget.check()
+            batch = texts[start : start + EMBEDDING_BATCH_SIZE]
+            started = time.monotonic()
+            try:
+                result = await self._embedder.embed(
+                    route, batch, request_timeout=self._settings.llm_timeout_seconds
+                )
+            except LLMError as exc:
+                await self._record(
+                    workspace_id, project_id, "embedding", route, TokenUsage(), None, started, exc
+                )
+                if isinstance(exc, LLMAuthError) and route.access.source == "workspace":
+                    await self._mark_credential_invalid(
+                        workspace_id, route.access.provider, str(exc)
+                    )
+                raise
+            if vectors and len(result.vectors[0]) != len(vectors[0]):
+                raise LLMError(f"{spec.name}: embedding size changed between batches")
+            cost = estimate_cost_usd(spec, route.model, result.usage)
+            if budget is not None:
+                budget.record(cost, result.usage)
+            await self._record(
+                workspace_id, project_id, "embedding", route, result.usage, cost, started, None
+            )
+            vectors.extend(result.vectors)
+            input_tokens += result.usage.input_tokens
+            total_cost = None if cost is None or total_cost is None else total_cost + cost
+        return Embeddings(
+            vectors=vectors,
+            usage=TokenUsage(input_tokens=input_tokens),
+            provider=route.access.provider,
+            # The model id as configured (not as echoed back), so vectors stored now can
+            # be matched with query vectors later.
+            model=route.model,
+            cost_usd=total_cost,
+        )
+
     async def _record(
         self,
         workspace_id: uuid.UUID,
         project_id: uuid.UUID | None,
-        role: AgentRole,
+        role: ModelRole,
         route: ModelRoute,
         usage: TokenUsage,
         cost: Decimal | None,

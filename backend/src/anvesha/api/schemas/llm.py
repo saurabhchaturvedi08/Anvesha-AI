@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from anvesha.llm.types import AgentRole
+from anvesha.llm.types import AgentRole, ModelRole
 
 
 class ProviderRead(BaseModel):
@@ -43,7 +43,7 @@ class ModelPreferenceWrite(BaseModel):
 
 
 class ModelPreferenceRead(BaseModel):
-    role: AgentRole
+    role: ModelRole
     provider: str | None
     model: str | None
 

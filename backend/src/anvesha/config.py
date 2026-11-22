@@ -56,6 +56,51 @@ class Settings(BaseSettings):
     openai_compatible_base_url: str | None = None
     openai_compatible_api_key: SecretStr | None = None
 
+    # --- Web search ----------------------------------------------------------------------
+    # SearXNG is the free, self-hosted default (docker compose runs one). The others are
+    # optional paid APIs; workspaces can also add their own keys for them.
+    searxng_url: str | None = None
+    tavily_api_key: SecretStr | None = None
+    brave_api_key: SecretStr | None = None
+    exa_api_key: SecretStr | None = None
+    # Used when a request doesn't name a provider. None: the first configured one.
+    default_search_provider: str | None = None
+    search_timeout_seconds: float = 20.0
+
+    # --- Scholarly sources (all free) ---------------------------------------------------
+    # A contact address unlocks the faster "polite" pools of OpenAlex, Crossref and NCBI.
+    scholar_contact_email: str | None = None
+    openalex_api_key: SecretStr | None = None
+    semantic_scholar_api_key: SecretStr | None = None
+    ncbi_api_key: SecretStr | None = None
+
+    # --- Fetching pages and documents ---------------------------------------------------
+    # Sent to websites and APIs. Operators can add a contact URL, e.g.
+    # "AnveshaBot/0.2 (+https://research.example.org/bot)".
+    http_user_agent: str = "Mozilla/5.0 (compatible; AnveshaBot/0.2; open-source research agent)"
+    # Product token matched against robots.txt rules.
+    robots_user_agent: str = "AnveshaBot"
+    fetch_timeout_seconds: float = 30.0
+    fetch_max_bytes: int = 25 * 1024 * 1024
+    fetch_max_redirects: int = 5
+    fetch_max_concurrency: int = 8
+    fetch_respect_robots_txt: bool = True
+    # Let fetched URLs reach localhost and private networks. Off by default even for
+    # self-hosting: agents choose these URLs, and pages can try to steer them inward.
+    fetch_allow_private_networks: bool = False
+    upload_max_bytes: int = 25 * 1024 * 1024
+    pdf_max_pages: int = 1000
+
+    # --- Files ----------------------------------------------------------------------------
+    # Uploaded and downloaded originals (PDFs). Extracted text lives in Postgres.
+    storage_dir: Path = Path(".anvesha/files")
+
+    # --- Retrieval ---------------------------------------------------------------------
+    chunk_max_chars: int = 1200
+    chunk_overlap_chars: int = 200
+    max_chunks_per_source: int = 4000
+    embedding_batch_size: int = 64
+
     @field_validator(
         "secret_key",
         "previous_secret_keys",
@@ -68,6 +113,15 @@ class Settings(BaseSettings):
         "ollama_base_url",
         "openai_compatible_base_url",
         "openai_compatible_api_key",
+        "searxng_url",
+        "tavily_api_key",
+        "brave_api_key",
+        "exa_api_key",
+        "default_search_provider",
+        "scholar_contact_email",
+        "openalex_api_key",
+        "semantic_scholar_api_key",
+        "ncbi_api_key",
         mode="before",
     )
     @classmethod

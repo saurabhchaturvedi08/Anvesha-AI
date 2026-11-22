@@ -6,6 +6,10 @@ from typing import Any, Literal
 
 AgentRole = Literal["lead", "researcher", "verifier", "writer"]
 AGENT_ROLES: tuple[AgentRole, ...] = ("lead", "researcher", "verifier", "writer")
+# Every role a workspace picks a model for: the agents, plus the embedding model that
+# powers semantic search over sources.
+ModelRole = Literal["lead", "researcher", "verifier", "writer", "embedding"]
+MODEL_ROLES: tuple[ModelRole, ...] = (*AGENT_ROLES, "embedding")
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,15 @@ class Completion:
     model: str
     finish_reason: str | None
     cost_usd: Decimal | None = None  # None when the price of this model is unknown
+
+
+@dataclass(frozen=True)
+class Embeddings:
+    vectors: list[list[float]]
+    usage: TokenUsage
+    provider: str
+    model: str
+    cost_usd: Decimal | None = None
 
 
 @dataclass(frozen=True)
