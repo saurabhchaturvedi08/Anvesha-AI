@@ -35,7 +35,7 @@ def _finding_lines(number: int, finding: FindingView) -> str:
         source += f", {finding.published}"
     if finding.page:
         source += f", page {finding.page}"
-    line = f"[F{number}] {finding.statement}\n  Quote: \"{quote}\"\n  Source: {source}"
+    line = f'[F{number}] {finding.statement}\n  Quote: "{quote}"\n  Source: {source}'
     if finding.status != "verified":
         line += "\n  (Quote verified in the source; not reviewed by the verifier.)"
     return line
@@ -128,8 +128,9 @@ async def write_report(
             Message.system(prompts.WRITER.format(today=datetime.now(UTC).date().isoformat())),
             Message.user(
                 f"Research question:\n{ctx.question}\n\nVerified findings (cite as [F#]):\n"
-                + untrusted("verified_findings", _evidence_brief(sub_questions, findings,
-                                                                contradictions))
+                + untrusted(
+                    "verified_findings", _evidence_brief(sub_questions, findings, contradictions)
+                )
             ),
         ]
         draft = ""
@@ -212,4 +213,4 @@ async def _save(
         )
         await session.commit()
     assert report_id is not None
-    return report_id
+    return uuid.UUID(str(report_id))

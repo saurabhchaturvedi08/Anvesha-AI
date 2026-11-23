@@ -70,7 +70,9 @@ class RunExecutor:
             if run.pending_decision is None:
                 await self._await_approval(run)  # nothing to resume with yet
                 return
-            graph_input = Command(resume=run.pending_decision)
+            # Always a non-empty dict with a plain key: LangGraph reads a dict whose keys
+            # all look like interrupt ids (vacuously true for {}) as per-interrupt answers.
+            graph_input = Command(resume={"action": "approve", **run.pending_decision})
         elif not snapshot.values and not snapshot.next:
             graph_input = {}  # first start
 
@@ -171,7 +173,7 @@ class RunExecutor:
         budget = Budget(
             max_cost_usd=run.max_cost_usd,
             max_tokens=run.max_tokens,
-            spent_usd=Decimal(spent),
+            spent_usd=Decimal(spent or 0),
             used_tokens=int(tokens),
             usable_fraction=RESEARCH_BUDGET_FRACTION,
         )

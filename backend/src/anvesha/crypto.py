@@ -9,6 +9,7 @@ Generate a key with ``uv run python -m anvesha.crypto``.
 """
 
 import base64
+import contextlib
 import hashlib
 import os
 import secrets
@@ -87,15 +88,21 @@ def _load_or_create_key_file(path: Path) -> str:
     except FileNotFoundError:
         pass
     path.parent.mkdir(parents=True, exist_ok=True)
-    key = generate_key()
+    # Write the key to a private temporary file, then link it into place. The link is
+    # atomic and fails if the file exists, so processes starting together (API and
+    # worker) all end up with the same key, and nobody ever reads a half-written file.
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
-        # O_EXCL: if another process created it first, use theirs instead.
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        return path.read_text(encoding="utf-8").strip()
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(key + "\n")
-    return key
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(generate_key() + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        with contextlib.suppress(FileExistsError):  # another process won: use its key
+            os.link(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path.read_text(encoding="utf-8").strip()
 
 
 def secret_box_from_settings(settings: Settings) -> SecretBox | None:

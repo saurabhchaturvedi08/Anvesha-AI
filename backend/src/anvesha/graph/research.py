@@ -1,6 +1,6 @@
 """The research graph: plan → (approve) → research in parallel → verify → review → write.
 
-    START → plan → review_plan ──Send×N──► research ─► verify ─► reflect ─┬─Send×N──► research
+    START → plan → review_plan ──Send(N)─► research ─► verify ─► reflect ─┬─Send(N)─► research
                    (interrupt for                                        └──────────► write → END
                     plan approval)
 
@@ -90,8 +90,7 @@ async def _save_plan(ctx: RunContext, strategy: str, pending: list[dict[str, Any
     plan = {
         "strategy": strategy,
         "sub_questions": [
-            {"id": p["id"], "question": p["question"], "rationale": p["rationale"]}
-            for p in pending
+            {"id": p["id"], "question": p["question"], "rationale": p["rationale"]} for p in pending
         ],
     }
     async with ctx.db.session() as session:
@@ -163,9 +162,9 @@ def dispatch(state: ResearchState) -> list[Send] | str:
     ]
 
 
-async def research(task: ResearchTask, runtime: Runtime[RunContext]) -> dict[str, Any]:
-    await Researcher(runtime.context, task["sub_question"], task["label"]).run(task["others"])
-    return {"researched": [task["sub_question"]["id"]]}
+async def research(state: ResearchTask, runtime: Runtime[RunContext]) -> dict[str, Any]:
+    await Researcher(runtime.context, state["sub_question"], state["label"]).run(state["others"])
+    return {"researched": [state["sub_question"]["id"]]}
 
 
 async def verify(state: ResearchState, runtime: Runtime[RunContext]) -> dict[str, Any]:

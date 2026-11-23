@@ -14,6 +14,14 @@ from anvesha.agents.evidence import FindingView, source_label
 # The optional leading space goes with the marker, so dropping a bad marker leaves no gap.
 _MARKER = re.compile(r"([ \t]?)\[\s*(F\d+(?:\s*[,;]\s*F\d+)*)\s*\]")
 _LABEL = re.compile(r"F(\d+)")
+_ADJACENT = re.compile(r"\[\d+(?:, \d+)*\](?:[ \t]?\[\d+(?:, \d+)*\])+")
+
+
+def _merge_adjacent(match: re.Match[str]) -> str:
+    numbers = sorted({int(n) for n in re.findall(r"\d+", match.group(0))})
+    return "[" + ", ".join(str(n) for n in numbers) + "]"
+
+
 _SOURCES_HEADING = re.compile(r"^#{1,3}\s*(sources|references|bibliography)\s*$", re.I | re.M)
 
 
@@ -72,6 +80,8 @@ def render_citations(draft: str, findings: list[FindingView]) -> RenderedReport:
         return match.group(1) + "[" + ", ".join(str(n) for n in sorted(numbers)) + "]"
 
     body = _MARKER.sub(replace, draft).strip()
+    # "[1][2]" or "[1] [1]" (the writer citing findings one by one) reads as "[1, 2]".
+    body = _ADJACENT.sub(_merge_adjacent, body)
 
     entries: list[str] = []
     for key, number in source_numbers.items():

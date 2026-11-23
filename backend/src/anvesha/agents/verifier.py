@@ -43,9 +43,7 @@ class Verdicts(BaseModel):
     verdicts: list[Verdict] = Field(max_length=50)
 
 
-SUBMIT_VERDICTS = SubmitTool(
-    "submit_verdicts", "Submit one verdict per item.", Verdicts
-)
+SUBMIT_VERDICTS = SubmitTool("submit_verdicts", "Submit one verdict per item.", Verdicts)
 
 
 @dataclass
@@ -106,8 +104,7 @@ async def _judge_batch(
 ) -> None:
     await ctx.check_cancelled()
     rendered = "\n\n".join(
-        f"Item {index}\nStatement: {finding.statement}\nQuote: {finding.quote}\n"
-        f"Context: {context}"
+        f"Item {index}\nStatement: {finding.statement}\nQuote: {finding.quote}\nContext: {context}"
         for index, (finding, context) in enumerate(batch, start=1)
     )
     messages = [
@@ -137,7 +134,9 @@ async def _judge_batch(
         verdict = verdicts.get(index)
         if verdict is None:
             # Kept as quote-verified evidence, labelled as not reviewed by the judge.
-            await _set(finding.id, ctx, "quote_verified", f"Not reviewed ({reason or 'no verdict'}).")
+            await _set(
+                finding.id, ctx, "quote_verified", f"Not reviewed ({reason or 'no verdict'})."
+            )
             summary.not_reviewed += 1
         elif verdict.supports:
             await _set(finding.id, ctx, "verified", verdict.note or "Supported.")

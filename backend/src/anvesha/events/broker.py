@@ -70,7 +70,7 @@ class RunEventBroker:
             try:
                 connection = await asyncpg.connect(self._dsn, timeout=10)
                 lost = asyncio.Event()
-                connection.add_termination_listener(lambda _conn: lost.set())
+                connection.add_termination_listener(lambda _conn, lost=lost: lost.set())
                 await connection.add_listener(CHANNEL, self._notify)
                 self._connected.set()
                 self._wake_all()

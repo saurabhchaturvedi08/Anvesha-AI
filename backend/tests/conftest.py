@@ -11,14 +11,14 @@ import hashlib
 import math
 import os
 import re
+import sys
 import tempfile
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import httpx2
 import pytest
-from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -32,6 +32,7 @@ from anvesha.crypto import generate_key
 from anvesha.db.base import Base
 from anvesha.llm.gateway import LLMGateway
 from anvesha.llm.types import Completion, Embeddings, Message, ModelRoute, TokenUsage, ToolSpec
+from anvesha.migrate import migrate
 from anvesha.sources.service import SourceService
 from anvesha.web.fetch import SafeFetcher
 
@@ -40,6 +41,18 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 TEST_DATABASE_URL = os.environ.get("ANVESHA_TEST_DATABASE_URL") or make_url(
     Settings().database_url
 ).set(database="anvesha_test").render_as_string(hide_password=False)
+# libpq tries IPv6 first for "localhost"; where Docker only listens on IPv4 (common on
+# Windows) every psycopg connection would wait for a timeout first.
+TEST_DATABASE_URL = TEST_DATABASE_URL.replace("@localhost:", "@127.0.0.1:")
+
+
+def pytest_asyncio_loop_factories(
+    config: pytest.Config, item: pytest.Item
+) -> Mapping[str, Callable[[], asyncio.AbstractEventLoop]] | None:
+    """psycopg (job queue, checkpoints) can't use Windows' default Proactor event loop."""
+    if sys.platform == "win32":
+        return {"selector": asyncio.SelectorEventLoop}
+    return None
 
 
 def alembic_config(url: str) -> Config:
@@ -64,9 +77,16 @@ async def _create_database_if_missing(url: str) -> None:
         await engine.dispose()
 
 
+# Tables managed by the job queue and LangGraph, emptied between tests as well.
+EXTERNAL_TABLES = ("procrastinate_jobs", "checkpoints", "checkpoint_writes", "checkpoint_blobs")
+
+
 async def _truncate_all_tables(url: str) -> None:
     engine = create_async_engine(url)
-    tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+    names = [
+        table.name for table in Base.metadata.sorted_tables if table.name != "schema_components"
+    ]
+    tables = ", ".join(f'"{name}"' for name in (*names, *EXTERNAL_TABLES))
     try:
         async with engine.begin() as connection:
             await connection.execute(text(f"TRUNCATE {tables} CASCADE"))
@@ -77,13 +97,17 @@ async def _truncate_all_tables(url: str) -> None:
 @pytest.fixture(scope="session")
 def database_url() -> str:
     try:
-        asyncio.run(_create_database_if_missing(TEST_DATABASE_URL))
+        asyncio.run(
+            _create_database_if_missing(TEST_DATABASE_URL),
+            loop_factory=asyncio.SelectorEventLoop if sys.platform == "win32" else None,
+        )
     except (OSError, SQLAlchemyError) as exc:
         message = f"PostgreSQL is not reachable for tests ({exc.__class__.__name__}: {exc})"
         if os.environ.get("ANVESHA_REQUIRE_DB") == "1":
             pytest.fail(message)
         pytest.skip(f"{message}. Start it with `docker compose up -d postgres`.")
-    command.upgrade(alembic_config(TEST_DATABASE_URL), "head")
+    # The full setup the deployment runs: Alembic, the job queue, LangGraph checkpoints.
+    migrate(make_settings(database_url=TEST_DATABASE_URL))
     return TEST_DATABASE_URL
 
 

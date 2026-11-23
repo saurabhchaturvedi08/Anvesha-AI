@@ -6,6 +6,7 @@
   whose worker stopped sending heartbeats.
 """
 
+import contextlib
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -78,12 +79,10 @@ class JobQueue:
 
     async def enqueue_run(self, run_id: uuid.UUID) -> None:
         """Queue a run for the worker. Does nothing if a job for it is already waiting."""
-        try:
+        with contextlib.suppress(AlreadyEnqueued):
             await self._run_task.configure(
                 lock=run_lock(run_id), queueing_lock=run_lock(run_id)
             ).defer_async(run_id=str(run_id))
-        except AlreadyEnqueued:
-            pass
 
     async def recover(self, db: Database) -> int:
         """Requeue work lost to crashed workers. Returns the number of runs requeued."""

@@ -153,6 +153,15 @@ class Settings(BaseSettings):
         return None if isinstance(value, str) and not value.strip() else value
 
     @property
+    def postgres_dsn(self) -> str:
+        """The database URL as a plain ``postgresql://`` DSN (for asyncpg's LISTEN)."""
+        return (
+            make_url(self.database_url)
+            .set(drivername="postgresql")
+            .render_as_string(hide_password=False)
+        )
+
+    @property
     def psycopg_database_url(self) -> str:
         """The database URL for libraries that use psycopg (LangGraph, Procrastinate).
 

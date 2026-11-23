@@ -98,9 +98,7 @@ class RunEvent(Base):
     # Which agent produced it, e.g. "lead" or "researcher:2".
     agent: Mapped[str | None] = mapped_column(String(64))
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class SubQuestion(UUIDPrimaryKey, Timestamps, Base):

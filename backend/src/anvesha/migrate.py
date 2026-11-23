@@ -67,7 +67,7 @@ def procrastinate_migrations_after(applied: str, installed: str) -> list[Path]:
     return [path for _, path in sorted(selected)]
 
 
-async def _migrate_job_queue(connection: psycopg.AsyncConnection[object]) -> None:
+async def _migrate_job_queue(connection: psycopg.AsyncConnection[tuple[Any, ...]]) -> None:
     installed = metadata.version("procrastinate")
     exists = await (
         await connection.execute("SELECT to_regclass('public.procrastinate_jobs') IS NOT NULL")
@@ -81,7 +81,7 @@ async def _migrate_job_queue(connection: psycopg.AsyncConnection[object]) -> Non
 
     if not (exists and exists[0]):
         logger.info("Creating the job queue schema (Procrastinate %s)", installed)
-        await connection.execute(SchemaManager.get_schema())  # type: ignore[arg-type]
+        await connection.execute(SchemaManager.get_schema())
     elif applied is None:
         # Created outside this tool (e.g. `procrastinate schema --apply`): trust it matches.
         logger.warning("Job queue schema has no recorded version; assuming %s", installed)
@@ -90,7 +90,7 @@ async def _migrate_job_queue(connection: psycopg.AsyncConnection[object]) -> Non
         logger.info("Upgrading the job queue schema %s -> %s", applied, installed)
         for script in scripts:
             logger.info("  applying %s", script.name)
-            await connection.execute(script.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+            await connection.execute(script.read_text(encoding="utf-8"))
     elif _version_tuple(applied) > _version_tuple(installed):
         raise RuntimeError(
             f"The job queue schema ({applied}) is newer than the installed Procrastinate "
@@ -105,9 +105,11 @@ async def _migrate_job_queue(connection: psycopg.AsyncConnection[object]) -> Non
 
 async def _migrate_extras(settings: Settings) -> None:
     conninfo = settings.psycopg_database_url
-    async with await psycopg.AsyncConnection.connect(conninfo) as connection:
-        async with connection.transaction():
-            await _migrate_job_queue(connection)  # type: ignore[arg-type]
+    async with (
+        await psycopg.AsyncConnection.connect(conninfo) as connection,
+        connection.transaction(),
+    ):
+        await _migrate_job_queue(connection)
     async with AsyncPostgresSaver.from_conn_string(conninfo) as checkpointer:
         await checkpointer.setup()
 

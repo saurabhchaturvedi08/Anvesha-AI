@@ -63,6 +63,8 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 "alembic/versions/*" = ["E501"]
 # Long assertion lines read better unwrapped; tests may touch files synchronously.
 "tests/*" = ["E501", "ASYNC240"]
+# Prompts are prose; wrapping them mid-sentence would only make them harder to edit.
+"src/anvesha/agents/prompts.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 # The local alembic/ directory would otherwise make ruff treat Alembic as first-party.
@@ -75,8 +77,8 @@ packages = ["anvesha"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-# pypdfium2 ships no type information.
-module = ["pypdfium2", "pypdfium2.*"]
+# pypdfium2 and asyncpg ship no type information.
+module = ["pypdfium2", "pypdfium2.*", "asyncpg", "asyncpg.*"]
 ignore_missing_imports = true
 
 [tool.uv]

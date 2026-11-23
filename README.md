@@ -15,7 +15,7 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 0: Foundation.** FastAPI backend, PostgreSQL, migrations, Docker Compose, CI.
 - [x] **Phase 1: Model gateway.** Bring your own key for OpenAI, Anthropic, Gemini, OpenRouter, Groq, Mistral, Ollama, or any OpenAI-compatible server; encrypted key storage; per-role models; usage and cost tracking.
 - [x] **Phase 2: Research tools.** Web search (bundled SearXNG, free; or Tavily, Brave, Exa), scholarly search (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed), safe page and PDF reading, uploads, hybrid keyword and semantic search, deterministic quote verification.
-- [ ] Phase 3: Multi-agent research graph
+- [x] **Phase 3: Research agents.** A lead researcher plans (you approve or edit the plan), researcher agents investigate in parallel, a verifier checks every quote in code and with a model, and a writer produces a cited report. Runs execute in a background worker, survive restarts, stream live progress, and stop at a spending limit with a partial report.
 - [ ] Phase 4: Web app
 - [ ] Phase 5: MCP server
 - [ ] Phases 6–8: Evals, hosted SaaS, desktop
@@ -46,6 +46,17 @@ If you self-host for yourself, you can instead put keys in `.env` (for example `
 
 For semantic search over your sources, also pick an **embedding model**: `PUT /api/v1/model-preferences/embedding` (for example OpenAI `text-embedding-3-small`, Gemini `gemini-embedding-001`, or Ollama `nomic-embed-text`). Without one, source search uses keywords only. Anthropic has no embeddings API.
 
+### Run research
+
+With models chosen for all four agent roles:
+
+1. **Start:** `POST /api/v1/projects/{id}/runs` with `{}` (researches the project's objective), or with options such as `{"autopilot": true, "depth": "deep", "max_cost_usd": "1.00"}`. Depth `quick`, `standard` or `deep` sets how many sub-questions, research rounds and steps the agents get.
+2. **Follow along:** `GET /api/v1/runs/{id}/events/stream` streams the agents' activity as Server-Sent Events (searches, pages read, findings, verification), replaying earlier events first. `GET /api/v1/runs/{id}` shows status, the plan, sub-questions and cost so far.
+3. **Approve the plan:** unless `autopilot` is set, the run pauses with status `awaiting_approval` once the lead has a plan. Continue with `POST /api/v1/runs/{id}/approve` (`{}` as proposed, or `{"sub_questions": [{"question": "..."}]}` to change it).
+4. **Read the report:** `GET /api/v1/runs/{id}/report` (Markdown with numbered citations and a source list), and the evidence behind it at `GET /api/v1/runs/{id}/findings`.
+
+`POST /api/v1/runs/{id}/cancel` stops a run within seconds. `POST /api/v1/runs/{id}/retry` continues a failed run from its last completed step (for example after fixing a key). Each run has a spending limit (`ANVESHA_RUN_DEFAULT_MAX_COST_USD`, default $2); when it is reached, research stops and the report is written from what was found.
+
 ### Search and gather sources
 
 Docker Compose runs a private [SearXNG](https://docs.searxng.org/) instance, so web search works with no API key. Scholarly search uses free public APIs.
@@ -67,9 +78,12 @@ Requires [uv](https://docs.astral.sh/uv/) (it installs the right Python version 
 docker compose up -d postgres searxng # database and web search only
 cd backend
 uv sync                               # create the virtualenv and install dependencies
-uv run alembic upgrade head           # apply database migrations
+uv run python -m anvesha.migrate      # database tables, job queue, agent checkpoints
 ANVESHA_SEARXNG_URL=http://localhost:8888 uv run uvicorn anvesha.api.app:create_app --factory --reload
+ANVESHA_SEARXNG_URL=http://localhost:8888 uv run python -m anvesha.worker   # in a second terminal
 ```
+
+On Windows, if connections to `localhost` hang, use `127.0.0.1` in `ANVESHA_DATABASE_URL` (Docker listens on IPv4 only).
 
 Checks (the same ones CI runs):
 
@@ -97,6 +111,12 @@ backend/
     sources/      saving sources, embeddings, hybrid search
     verify/       deterministic quote verification
     tools/        the tools agents call (shared with the future MCP server)
+    agents/       lead, researcher, verifier and writer agents, prompts, citations
+    graph/        the LangGraph research graph, checkpoints, and the run executor
+    worker/       background worker and job queue (Procrastinate)
+    events/       run activity events: storage, LISTEN/NOTIFY, Server-Sent Events
+    runs.py       starting, approving, cancelling and retrying runs
+    migrate.py    one command for all schemas (`python -m anvesha.migrate`)
     config.py     all settings (ANVESHA_* environment variables)
     crypto.py     encryption for stored API keys
     tenancy.py    users, workspaces, and request scoping

@@ -92,7 +92,9 @@ def quote_hash(quote: str) -> str:
     return hashlib.sha256(normalize(quote).encode()).hexdigest()
 
 
-def trim_old_tool_outputs(messages: list[Message], keep: int = KEEP_RECENT_TOOL_OUTPUTS) -> list[Message]:
+def trim_old_tool_outputs(
+    messages: list[Message], keep: int = KEEP_RECENT_TOOL_OUTPUTS
+) -> list[Message]:
     """Shorten all but the most recent tool outputs; the agent can re-read sources."""
     tool_positions = [i for i, m in enumerate(messages) if m.role == "tool"]
     to_trim = set(tool_positions[:-keep]) if keep else set(tool_positions)
@@ -122,8 +124,11 @@ class Researcher:
     async def run(self, other_questions: list[str]) -> ResearchOutcome:
         ctx, profile = self.ctx, self.ctx.profile
         await self._set_status("researching")
-        await ctx.emit("researcher_started", {"sub_question_id": str(self.sub_question_id),
-                                              "question": self.question}, agent=self.label)
+        await ctx.emit(
+            "researcher_started",
+            {"sub_question_id": str(self.sub_question_id), "question": self.question},
+            agent=self.label,
+        )
         specs = [*ctx.tools.specs(RESEARCH_TOOLS), RECORD_FINDING.spec(), FINISH.spec()]
         task = f"Main research question:\n{ctx.question}\n\nYour sub-question:\n{self.question}"
         if self.rationale:
@@ -163,7 +168,9 @@ class Researcher:
                 self.outcome.steps = step + 1
                 messages.append(Message.assistant(completion.text, completion.tool_calls))
                 if completion.text.strip():
-                    await ctx.emit("agent_message", {"text": clip(completion.text)}, agent=self.label)
+                    await ctx.emit(
+                        "agent_message", {"text": clip(completion.text)}, agent=self.label
+                    )
                 if not completion.tool_calls:
                     prose_replies += 1
                     if prose_replies > 1:
@@ -188,8 +195,9 @@ class Researcher:
                 self.outcome.stopped = "step_limit"
         except BudgetExceededError as exc:
             self.outcome.stopped = "budget"
-            await ctx.emit("researcher_stopped", {"reason": "budget", "detail": str(exc)},
-                           agent=self.label)
+            await ctx.emit(
+                "researcher_stopped", {"reason": "budget", "detail": str(exc)}, agent=self.label
+            )
         except LLMError as exc:
             # Temporary provider trouble (after the adapter's own retries) or a broken
             # response ends this researcher, not the run. Problems that would hit every
@@ -198,8 +206,11 @@ class Researcher:
                 raise
             self.outcome.stopped = "error"
             self.outcome.gaps.append(f"Research stopped early: {exc.code}")
-            await ctx.emit("researcher_stopped", {"reason": exc.code, "detail": clip(str(exc))},
-                           agent=self.label)
+            await ctx.emit(
+                "researcher_stopped",
+                {"reason": exc.code, "detail": clip(str(exc))},
+                agent=self.label,
+            )
         if not self._finished and not self.outcome.summary:
             self.outcome.summary = (
                 f"Stopped before finishing ({self.outcome.stopped or 'unknown'}). "
@@ -237,8 +248,9 @@ class Researcher:
             return await self._record_finding(call)
         if call.name not in RESEARCH_TOOLS:
             return f"Error: there is no tool named {call.name!r}."
-        await ctx.emit("tool_call", {"tool": call.name, "arguments": _brief(call.arguments)},
-                       agent=self.label)
+        await ctx.emit(
+            "tool_call", {"tool": call.name, "arguments": _brief(call.arguments)}, agent=self.label
+        )
         result = await ctx.tools.invoke(call.name, call.arguments, ctx.tool_context)
         await ctx.emit(
             "tool_result",
@@ -286,9 +298,11 @@ class Researcher:
                 "(4+ words, 20+ characters)."
             )
         if not match.supported:
-            await ctx.emit("finding_rejected", {"source_id": str(source.id),
-                                                "statement": clip(args.statement, 200)},
-                           agent=self.label)
+            await ctx.emit(
+                "finding_rejected",
+                {"source_id": str(source.id), "statement": clip(args.statement, 200)},
+                agent=self.label,
+            )
             return (
                 f"REJECTED: the quote does not appear in source {source.id}. Copy the passage "
                 "exactly as it appears (read_source or search_sources show the text); don't "
@@ -365,4 +379,3 @@ def _brief(arguments: dict[str, Any]) -> dict[str, Any]:
         key: clip(value, 200) if isinstance(value, str) else value
         for key, value in list(arguments.items())[:6]
     }
-

@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from anvesha.config import Settings
 from anvesha.crypto import SecretBox
 from anvesha.db.session import Database
+from anvesha.events.broker import RunEventBroker
 from anvesha.llm.gateway import LLMGateway
 from anvesha.sources.service import SourceService
 from anvesha.storage import FileStorage
 from anvesha.tenancy import Principal
 from anvesha.tools import ToolRegistry
+from anvesha.worker.queue import JobQueue
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -57,6 +59,14 @@ def get_tools(request: Request) -> ToolRegistry:
     return cast(ToolRegistry, request.app.state.tools)
 
 
+def get_queue(request: Request) -> JobQueue:
+    return cast(JobQueue, request.app.state.queue)
+
+
+def get_broker(request: Request) -> RunEventBroker:
+    return cast(RunEventBroker, request.app.state.broker)
+
+
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 DatabaseDep = Annotated[Database, Depends(get_database)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -67,3 +77,5 @@ GatewayDep = Annotated[LLMGateway, Depends(get_gateway)]
 StorageDep = Annotated[FileStorage, Depends(get_storage)]
 SourceServiceDep = Annotated[SourceService, Depends(get_source_service)]
 ToolsDep = Annotated[ToolRegistry, Depends(get_tools)]
+QueueDep = Annotated[JobQueue, Depends(get_queue)]
+BrokerDep = Annotated[RunEventBroker, Depends(get_broker)]

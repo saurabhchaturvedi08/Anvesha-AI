@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx2
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,22 +12,18 @@ from anvesha.api.routers import (
     model_preferences,
     projects,
     providers,
+    runs,
     search,
     sources,
     tools,
     usage,
 )
 from anvesha.config import Settings, get_settings
-from anvesha.crypto import secret_box_from_settings
-from anvesha.db.session import Database
 from anvesha.errors import AppError
-from anvesha.llm.adapters import AnthropicAdapter, OpenAICompatibleAdapter
-from anvesha.llm.gateway import LLMGateway
-from anvesha.sources.service import SourceService
-from anvesha.storage import LocalFileStorage
+from anvesha.events.broker import RunEventBroker
+from anvesha.services import open_services
 from anvesha.tenancy import ensure_local_principal
-from anvesha.tools import build_registry
-from anvesha.web.fetch import SafeFetcher
+from anvesha.worker.queue import JobQueue
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -37,50 +32,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        db = Database(settings.database_url)
-        vault = secret_box_from_settings(settings)
-        # `http` talks to fixed, trusted APIs (model providers, search and scholarly APIs).
-        # Arbitrary URLs from users and agents go through `fetcher`, which blocks SSRF.
-        fetcher = SafeFetcher(settings)
-        async with httpx2.AsyncClient(follow_redirects=False) as http:
-            openai_adapter = OpenAICompatibleAdapter(http, settings.llm_max_retries)
-            gateway = LLMGateway(
-                db,
-                settings,
-                vault,
-                {
-                    "openai": openai_adapter,
-                    "anthropic": AnthropicAdapter(http, settings.llm_max_retries),
-                },
-                embedder=openai_adapter,
-            )
-            storage = LocalFileStorage(settings.storage_dir)
+        async with open_services(settings) as services:
             app.state.settings = settings
-            app.state.db = db
-            app.state.vault = vault
-            app.state.http = http
-            app.state.gateway = gateway
-            app.state.fetcher = fetcher
-            app.state.storage = storage
-            app.state.sources = SourceService(
-                db=db, settings=settings, fetcher=fetcher, storage=storage, gateway=gateway
-            )
-            app.state.tools = build_registry()
-            try:
-                async with db.session() as session:
-                    try:
-                        app.state.local_principal = await ensure_local_principal(
-                            session, settings.local_user_email
-                        )
-                    except ProgrammingError as exc:
-                        raise RuntimeError(
-                            "The database schema is missing or outdated. "
-                            "Run `uv run alembic upgrade head` in backend/ first."
-                        ) from exc
-                yield
-            finally:
-                await fetcher.aclose()
-                await db.dispose()
+            app.state.db = services.db
+            app.state.vault = services.vault
+            app.state.http = services.http
+            app.state.gateway = services.gateway
+            app.state.fetcher = services.fetcher
+            app.state.storage = services.storage
+            app.state.sources = services.sources
+            app.state.tools = services.tools
+            async with services.db.session() as session:
+                try:
+                    app.state.local_principal = await ensure_local_principal(
+                        session, settings.local_user_email
+                    )
+                except ProgrammingError as exc:
+                    raise RuntimeError(
+                        "The database schema is missing or outdated. "
+                        "Run `python -m anvesha.migrate` in backend/ first."
+                    ) from exc
+            # Runs execute in the worker; the API only queues them and streams progress.
+            queue = JobQueue(settings)
+            broker = RunEventBroker(settings.postgres_dsn)
+            app.state.queue = queue
+            app.state.broker = broker
+            async with queue.app.open_async():
+                await broker.start()
+                try:
+                    yield
+                finally:
+                    await broker.stop()
 
     app = FastAPI(title="Anvesha API", version=__version__, lifespan=lifespan)
     app.add_middleware(
@@ -104,4 +86,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(search.router)
     app.include_router(sources.router)
     app.include_router(tools.router)
+    app.include_router(runs.router)
     return app

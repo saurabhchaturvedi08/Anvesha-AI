@@ -1,5 +1,8 @@
 # Self-hosted Anvesha. Run `docker compose up --build` from the repository root,
 # then open http://localhost:8000/docs. Settings come from .env (see .env.example).
+#
+# Services: postgres (data, job queue, agent checkpoints), migrate (one-off schema
+# setup), searxng (web search), api (HTTP + live progress), worker (research agents).
 
 name: anvesha
 
@@ -34,6 +37,13 @@ x-backend-env: &backend-env
   ANVESHA_NCBI_API_KEY: ${ANVESHA_NCBI_API_KEY:-}
   # Uploaded and downloaded PDFs (the anvesha-files volume).
   ANVESHA_STORAGE_DIR: /var/lib/anvesha-files
+  # Research runs: per-run spending limit (USD) and worker capacity.
+  ANVESHA_RUN_DEFAULT_MAX_COST_USD: ${ANVESHA_RUN_DEFAULT_MAX_COST_USD:-2.00}
+  ANVESHA_RUN_MAX_COST_CEILING_USD: ${ANVESHA_RUN_MAX_COST_CEILING_USD:-50.00}
+  ANVESHA_RUN_MAX_PARALLEL_RESEARCHERS: ${ANVESHA_RUN_MAX_PARALLEL_RESEARCHERS:-4}
+  ANVESHA_WORKER_CONCURRENCY: ${ANVESHA_WORKER_CONCURRENCY:-4}
+  # Only plain data may be restored from agent checkpoints (defence in depth).
+  LANGGRAPH_STRICT_MSGPACK: "true"
 
 services:
   postgres:
@@ -54,7 +64,8 @@ services:
 
   migrate:
     build: ./backend
-    command: ["alembic", "upgrade", "head"]
+    # App tables (Alembic), the job queue schema, and agent checkpoint tables.
+    command: ["python", "-m", "anvesha.migrate"]
     environment: *backend-env
     depends_on:
       postgres:
@@ -90,6 +101,29 @@ services:
         condition: service_completed_successfully
       searxng:
         condition: service_started
+    restart: unless-stopped
+
+  worker:
+    # Runs the research agents. Scale out with `docker compose up --scale worker=3`.
+    build: ./backend
+    command: ["python", "-m", "anvesha.worker"]
+    environment: *backend-env
+    volumes:
+      # Same secret key and files as the API: workers decrypt keys and store PDFs.
+      - anvesha-secrets:/var/lib/anvesha
+      - anvesha-files:/var/lib/anvesha-files
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      # Started after the API, which creates the secret key on first start.
+      api:
+        condition: service_started
+      searxng:
+        condition: service_started
+    # Give in-flight steps time to finish; runs resume from checkpoints after restarts.
+    stop_grace_period: 45s
     restart: unless-stopped
 
 volumes:
