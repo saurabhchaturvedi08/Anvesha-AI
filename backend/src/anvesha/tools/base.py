@@ -61,6 +61,38 @@ class ToolResult:
 Handler = Callable[[ToolContext, Any], Awaitable[ToolResult]]
 
 
+def tool_parameters_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """A model's JSON Schema in the plainest form every provider accepts.
+
+    Nested models are inlined (some OpenAI-compatible servers reject ``$ref``), and
+    titles are dropped (they only add tokens).
+    """
+    schema = model.model_json_schema()
+    definitions = schema.pop("$defs", {})
+
+    def resolve(node: Any) -> Any:
+        if isinstance(node, dict):
+            if "$ref" in node:
+                target = definitions[node["$ref"].rsplit("/", 1)[-1]]
+                merged = {**target, **{k: v for k, v in node.items() if k != "$ref"}}
+                return resolve(merged)
+            out: dict[str, Any] = {}
+            for key, value in node.items():
+                if key == "title":
+                    continue  # the schema keyword; a *property* named "title" is kept below
+                if key == "properties" and isinstance(value, dict):
+                    out[key] = {name: resolve(prop) for name, prop in value.items()}
+                else:
+                    out[key] = resolve(value)
+            return out
+        if isinstance(node, list):
+            return [resolve(item) for item in node]
+        return node
+
+    resolved: dict[str, Any] = resolve(schema)
+    return resolved
+
+
 @dataclass(frozen=True)
 class Tool:
     name: str
@@ -69,11 +101,11 @@ class Tool:
     handler: Handler
 
     def spec(self) -> ToolSpec:
-        schema = self.args_model.model_json_schema()
-        schema.pop("title", None)
-        for prop in schema.get("properties", {}).values():
-            prop.pop("title", None)
-        return ToolSpec(name=self.name, description=self.description, parameters=schema)
+        return ToolSpec(
+            name=self.name,
+            description=self.description,
+            parameters=tool_parameters_schema(self.args_model),
+        )
 
 
 class ToolRegistry:

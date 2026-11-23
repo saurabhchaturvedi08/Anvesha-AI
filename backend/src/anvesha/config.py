@@ -1,9 +1,11 @@
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import make_url
 
 
 class Settings(BaseSettings):
@@ -103,6 +105,22 @@ class Settings(BaseSettings):
     max_chunks_per_source: int = 4000
     embedding_batch_size: int = 64
 
+    # --- Research runs -----------------------------------------------------------------
+    # Spending limit for one run when the request doesn't set one. Runs stop gracefully
+    # (with a partial report) when they reach it. None: no cost limit.
+    run_default_max_cost_usd: Decimal | None = Decimal("2.00")
+    # The most a single request may ask for. None: no ceiling.
+    run_max_cost_ceiling_usd: Decimal | None = Decimal("50.00")
+    run_default_max_tokens: int | None = None
+    # Researcher agents working at the same time within one run.
+    run_max_parallel_researchers: int = Field(default=4, ge=1, le=16)
+    # A run that takes longer than this is stopped (it can be retried from its checkpoint).
+    run_timeout_minutes: int = Field(default=90, ge=1)
+    # How many times the worker tries a run that hit a temporary failure (provider outage).
+    run_max_attempts: int = Field(default=3, ge=1, le=10)
+    # Research runs one worker process executes at the same time.
+    worker_concurrency: int = Field(default=4, ge=1, le=64)
+
     @field_validator(
         "secret_key",
         "previous_secret_keys",
@@ -124,12 +142,27 @@ class Settings(BaseSettings):
         "openalex_api_key",
         "semantic_scholar_api_key",
         "ncbi_api_key",
+        "run_default_max_cost_usd",
+        "run_max_cost_ceiling_usd",
+        "run_default_max_tokens",
         mode="before",
     )
     @classmethod
     def _blank_means_unset(cls, value: Any) -> Any:
         # Docker Compose passes unset variables as empty strings.
         return None if isinstance(value, str) and not value.strip() else value
+
+    @property
+    def psycopg_database_url(self) -> str:
+        """The database URL for libraries that use psycopg (LangGraph, Procrastinate).
+
+        Adds a connect timeout unless one is set, so an unreachable address fails instead
+        of hanging (libpq waits indefinitely by default).
+        """
+        url = make_url(self.database_url).set(drivername="postgresql")
+        if "connect_timeout" not in url.query:
+            url = url.update_query_dict({"connect_timeout": "10"})
+        return url.render_as_string(hide_password=False)
 
     @property
     def cors_origin_list(self) -> list[str]:

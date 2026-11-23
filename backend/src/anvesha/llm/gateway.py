@@ -64,6 +64,7 @@ class LLMGateway:
         temperature: float | None = None,
         budget: Budget | None = None,
         project_id: uuid.UUID | None = None,
+        run_id: uuid.UUID | None = None,
     ) -> Completion:
         async with self._db.session() as session:
             route = await resolve_route(session, self._settings, self._vault, workspace_id, role)
@@ -83,7 +84,7 @@ class LLMGateway:
             )
         except LLMError as exc:
             await self._record(
-                workspace_id, project_id, role, route, TokenUsage(), None, started, exc
+                workspace_id, project_id, role, route, TokenUsage(), None, started, exc, run_id
             )
             if isinstance(exc, LLMAuthError) and route.access.source == "workspace":
                 await self._mark_credential_invalid(workspace_id, route.access.provider, str(exc))
@@ -93,7 +94,7 @@ class LLMGateway:
         if budget is not None:
             budget.record(cost, completion.usage)
         await self._record(
-            workspace_id, project_id, role, route, completion.usage, cost, started, None
+            workspace_id, project_id, role, route, completion.usage, cost, started, None, run_id
         )
         return replace(completion, cost_usd=cost)
 
@@ -183,10 +184,12 @@ class LLMGateway:
         cost: Decimal | None,
         started: float,
         error: LLMError | None,
+        run_id: uuid.UUID | None = None,
     ) -> None:
         event = UsageEvent(
             workspace_id=workspace_id,
             project_id=project_id,
+            run_id=run_id,
             role=role,
             provider=route.access.provider,
             model=route.model,

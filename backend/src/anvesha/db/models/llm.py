@@ -71,6 +71,10 @@ class UsageEvent(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), index=True
     )
+    # Set for calls made by a research run; its budget is rebuilt from these after restarts.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("runs.id", ondelete="SET NULL"), index=True
+    )
     role: Mapped[str | None] = mapped_column(String(16))
     provider: Mapped[str] = mapped_column(String(32))
     model: Mapped[str] = mapped_column(String(255))

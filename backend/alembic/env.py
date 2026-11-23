@@ -17,6 +17,18 @@ if config.config_file_name is not None and config.attributes.get("configure_logg
 target_metadata = Base.metadata
 
 
+def include_name(name: str | None, type_: str, parent_names: object) -> bool:
+    """Only compare tables this app defines.
+
+    LangGraph checkpoints (``checkpoint*``) and the Procrastinate job queue
+    (``procrastinate_*``) live in the same database but manage their own schemas
+    (see ``anvesha.migrate``), so Alembic must neither create nor drop them.
+    """
+    if type_ == "table":
+        return name in target_metadata.tables
+    return True
+
+
 def _database_url() -> str:
     return config.get_main_option("sqlalchemy.url") or get_settings().database_url
 
@@ -28,13 +40,19 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def _run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        include_name=include_name,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
