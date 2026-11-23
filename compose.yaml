@@ -21,6 +21,19 @@ x-backend-env: &backend-env
   # To use Ollama running on your computer, set this in .env to
   # http://host.docker.internal:11434/v1
   ANVESHA_OLLAMA_BASE_URL: ${ANVESHA_OLLAMA_BASE_URL:-}
+  # Web search: the bundled SearXNG is free. Paid APIs are optional.
+  ANVESHA_SEARXNG_URL: ${ANVESHA_SEARXNG_URL:-http://searxng:8080}
+  ANVESHA_TAVILY_API_KEY: ${ANVESHA_TAVILY_API_KEY:-}
+  ANVESHA_BRAVE_API_KEY: ${ANVESHA_BRAVE_API_KEY:-}
+  ANVESHA_EXA_API_KEY: ${ANVESHA_EXA_API_KEY:-}
+  ANVESHA_DEFAULT_SEARCH_PROVIDER: ${ANVESHA_DEFAULT_SEARCH_PROVIDER:-}
+  # Scholarly APIs are free. A contact email gets faster "polite pool" access.
+  ANVESHA_SCHOLAR_CONTACT_EMAIL: ${ANVESHA_SCHOLAR_CONTACT_EMAIL:-}
+  ANVESHA_OPENALEX_API_KEY: ${ANVESHA_OPENALEX_API_KEY:-}
+  ANVESHA_SEMANTIC_SCHOLAR_API_KEY: ${ANVESHA_SEMANTIC_SCHOLAR_API_KEY:-}
+  ANVESHA_NCBI_API_KEY: ${ANVESHA_NCBI_API_KEY:-}
+  # Uploaded and downloaded PDFs (the anvesha-files volume).
+  ANVESHA_STORAGE_DIR: /var/lib/anvesha-files
 
 services:
   postgres:
@@ -47,6 +60,21 @@ services:
       postgres:
         condition: service_healthy
 
+  searxng:
+    # Pinned to a release at least a week old (same supply-chain rule as Python packages).
+    image: searxng/searxng:2026.11.15-2d500cb6b
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-anvesha-searxng}
+      # Wikipedia and Wikidata results need a contact URL or mailto: for whoever runs
+      # this instance (Wikimedia API policy). Without it those two engines stay off.
+      SEARXNG_CONTACT_URL: ${SEARXNG_CONTACT_URL:-}
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      # Published on localhost only, for running the backend outside Docker.
+      - "127.0.0.1:${SEARXNG_PORT:-8888}:8080"
+    restart: unless-stopped
+
   api:
     build: ./backend
     environment: *backend-env
@@ -54,13 +82,17 @@ services:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - anvesha-secrets:/var/lib/anvesha
+      - anvesha-files:/var/lib/anvesha-files
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
+      searxng:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   pgdata:
   anvesha-secrets:
+  anvesha-files:

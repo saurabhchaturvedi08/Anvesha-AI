@@ -30,7 +30,7 @@ class GuardedNetworkBackend(httpcore2.AsyncNetworkBackend):
         self,
         host: str,
         port: int,
-        timeout: float | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109 (httpcore's interface)
         local_address: str | None = None,
         socket_options: Iterable[SocketOption] | None = None,
     ) -> httpcore2.AsyncNetworkStream:
@@ -53,7 +53,7 @@ class GuardedNetworkBackend(httpcore2.AsyncNetworkBackend):
     async def connect_unix_socket(
         self,
         path: str,
-        timeout: float | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109 (httpcore's interface)
         socket_options: Iterable[SocketOption] | None = None,
     ) -> httpcore2.AsyncNetworkStream:
         raise UnsafeURLError("Unix sockets are not allowed.")

@@ -1,6 +1,6 @@
 # Anvesha v2: Architecture and Restructure Plan
 
-Status: **Approved, Phase 0 in progress**
+Status: **Approved. Phases 0–2 complete; Phase 3 next.**
 Date: 2026-11-16
 
 ---
@@ -68,8 +68,8 @@ Plus plain BYOK: paste an OpenAI, Anthropic, Google, Groq, or other key, or poin
 | Live progress | **SSE** via Postgres LISTEN/NOTIFY, events persisted in `run_events` | Stream agent steps, tool calls, and partial reports to the UI; reconnecting clients replay from the table. |
 | Database | **PostgreSQL 16 + pgvector** | One DB for app data, LangGraph checkpoints (`PostgresSaver`), vectors, and full-text search. Works the same self-hosted and in the cloud. |
 | Migrations | **Alembic** | Already a dependency; actually use it. |
-| File storage | **S3-compatible** (MinIO self-hosted, Cloudflare R2 in SaaS) | Uploaded PDFs and fetched page snapshots. |
-| Document parsing | **Docling** (quality) with **PyMuPDF** as the fast path | PDFs, tables, academic papers. |
+| File storage | **Local volume** now; **S3-compatible** (Cloudflare R2) for SaaS | Original PDFs. Extracted text lives in Postgres. The storage interface is small, so an S3 backend drops in for the hosted service. MinIO isn't needed for self-hosting. |
+| Document parsing | **pypdfium2** (PDFium, Chrome's PDF engine) now; **Docling** later as an optional quality path | PyMuPDF 2.x now bundles onnxruntime and a layout model (~100 MB), too heavy for the default image. pypdfium2 is fast, permissively licensed, and has no dependencies. |
 | Web content extraction | `httpx` + **trafilatura**; optional Jina Reader / Firecrawl | Full-text pages for real quote verification. |
 | Search (pluggable) | **SearXNG** (free, self-hostable, default for OSS), Tavily, Brave, Exa | Students can run with zero search cost. |
 | Scholarly sources | **OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed** | Free APIs. This is the big differentiator for researchers. |
@@ -304,7 +304,7 @@ Each phase ends with something runnable and tests passing.
 |---|---|---|---|
 | **0. Foundation** ✅ | New skeleton, no feature loss in concept | uv + `src/anvesha` layout, config, Postgres + Alembic, root `compose.yaml` (postgres, migrate, api), local single-user tenancy, projects API, CI. MinIO and SearXNG join in Phase 2, when something uses them. | 1 wk |
 | **1. LLM gateway + BYOK** ✅ | Any model, per user, per role | Gateway on official SDKs (8 providers), AES-GCM key vault with auto-generated master key, free key validation via model lists, per-role model preferences, deployment-wide fallback keys, usage tracking, budgets, `/llm/test` endpoint | 1 wk |
-| **2. Tools layer** | Agents can see the real world | Search providers (SearXNG default), scholarly APIs, safe `fetch_page` + extraction, PDF ingest, chunk/embed/hybrid search, verification module ported | 1.5 wk |
+| **2. Tools layer** ✅ | Agents can see the real world | SearXNG bundled in compose plus Tavily/Brave/Exa (workspace or server keys); OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed; SSRF-proof fetcher (address check on every connection, redirects, size/time/type limits, robots.txt for agents); trafilatura and PDFium extraction; uploads; chunks with exact offsets; embeddings via the gateway (new `embedding` role); hybrid FTS + pgvector search with RRF; deterministic quote verification (typography, ligatures, PDF hyphenation, ellipsis fragments); tool registry with untrusted-content wrapping | 1.5 wk |
 | **3. Agent graph v2** | Real agentic research | Lead/Researcher/Verifier/Writer, `Send` fan-out, `interrupt()` plan approval, PostgresSaver, Procrastinate worker, SSE events, fake-LLM graph tests | 2 wk |
 | **4. Web app** | Easy to use | Next.js app: new research wizard, live agent activity view, plan approval, report with hoverable citations, sources/evidence explorer, chat with project, settings/keys | 2 wk |
 | **5. MCP server** | Use from Claude / ChatGPT / Gemini | Remote MCP (Streamable HTTP + OAuth): `start_research`, `get_report`, `search_evidence`, plus raw tools | 1 wk |

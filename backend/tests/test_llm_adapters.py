@@ -216,3 +216,46 @@ async def test_anthropic_adapter_maps_auth_error(
         await adapter.complete(
             route("anthropic", "https://api.anthropic.com"), [Message.user("hi")], request_timeout=5
         )
+
+
+async def test_openai_compatible_embeddings(
+    http_for: Callable[[Recorder], httpx2.AsyncClient],
+) -> None:
+    recorder = Recorder(
+        200,
+        {
+            "object": "list",
+            "model": "test-model",
+            # Returned out of order on purpose: the adapter must sort by index.
+            "data": [
+                {"object": "embedding", "index": 1, "embedding": [0.0, 1.0]},
+                {"object": "embedding", "index": 0, "embedding": [1.0, 0.0]},
+            ],
+            "usage": {"prompt_tokens": 7, "total_tokens": 7},
+        },
+    )
+    adapter = OpenAICompatibleAdapter(http_for(recorder), max_retries=0)
+    result = await adapter.embed(
+        route("openai", "https://api.openai.com/v1"), ["first", "second"], request_timeout=5
+    )
+    assert result.vectors == [[1.0, 0.0], [0.0, 1.0]]
+    assert result.usage.input_tokens == 7
+    assert recorder.sent["input"] == ["first", "second"]
+    assert str(recorder.requests[-1].url) == "https://api.openai.com/v1/embeddings"
+
+
+async def test_embeddings_with_the_wrong_count_are_rejected(
+    http_for: Callable[[Recorder], httpx2.AsyncClient],
+) -> None:
+    recorder = Recorder(
+        200,
+        {
+            "object": "list",
+            "model": "m",
+            "data": [{"object": "embedding", "index": 0, "embedding": [1.0]}],
+            "usage": {"prompt_tokens": 1, "total_tokens": 1},
+        },
+    )
+    adapter = OpenAICompatibleAdapter(http_for(recorder), max_retries=0)
+    with pytest.raises(LLMInvalidResponseError, match="expected 2"):
+        await adapter.embed(route("ollama", "http://ollama/v1"), ["a", "b"], request_timeout=5)

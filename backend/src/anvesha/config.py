@@ -75,9 +75,11 @@ class Settings(BaseSettings):
     ncbi_api_key: SecretStr | None = None
 
     # --- Fetching pages and documents ---------------------------------------------------
-    # Sent to websites and APIs. Operators can add a contact URL, e.g.
-    # "AnveshaBot/0.2 (+https://research.example.org/bot)".
+    # Sent to websites when fetching pages. Operators can add a contact URL, e.g.
+    # "Mozilla/5.0 (compatible; AnveshaBot/0.2; +https://research.example.org/bot)".
     http_user_agent: str = "Mozilla/5.0 (compatible; AnveshaBot/0.2; open-source research agent)"
+    # Sent to search and scholarly APIs. Some (NCBI) block anything that looks like a bot.
+    api_user_agent: str = "Anvesha/0.2 (open-source research platform)"
     # Product token matched against robots.txt rules.
     robots_user_agent: str = "AnveshaBot"
     fetch_timeout_seconds: float = 30.0

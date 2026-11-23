@@ -134,6 +134,24 @@ async def test_model_preferences_require_a_configured_provider(
     assert (await client.get("/api/v1/model-preferences")).json()[0]["model"] is None
 
 
+async def test_embedding_role_needs_a_provider_with_embeddings(
+    client: AsyncClient, provider_api: FakeProviderAPI
+) -> None:
+    roles = [p["role"] for p in (await client.get("/api/v1/model-preferences")).json()]
+    assert roles == ["lead", "researcher", "verifier", "writer", "embedding"]
+
+    provider_api.add("https://api.anthropic.com/v1/models", 200, {"data": []})
+    provider_api.add(OPENAI_MODELS, 200, {"data": []})
+    await client.put("/api/v1/providers/anthropic/credential", json={"api_key": SECRET})
+    await client.put("/api/v1/providers/openai/credential", json={"api_key": SECRET})
+
+    claude = {"provider": "anthropic", "model": "claude-haiku-4-5"}
+    rejected = await client.put("/api/v1/model-preferences/embedding", json=claude)
+    assert rejected.status_code == 422 and "embeddings" in rejected.json()["detail"]
+    openai = {"provider": "openai", "model": "text-embedding-3-small"}
+    assert (await client.put("/api/v1/model-preferences/embedding", json=openai)).status_code == 200
+
+
 async def test_llm_test_endpoint_and_usage_summary(
     client: AsyncClient, provider_api: FakeProviderAPI, fake_llm: FakeAdapter
 ) -> None:

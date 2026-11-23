@@ -65,7 +65,7 @@ def _parse_content_type(header: str | None) -> tuple[str, str | None]:
     return media_type.strip().lower(), charset
 
 
-def _sniff_type(media_type: str, body: bytes) -> str:
+def sniff_media_type(media_type: str, body: bytes) -> str:
     """Trust magic bytes over a missing or generic Content-Type."""
     head = body[:1024].lstrip()
     if head.startswith(b"%PDF-"):
@@ -166,7 +166,7 @@ class SafeFetcher:
                     body.extend(chunk)
                     if len(body) > limit:
                         raise self._too_large(url, limit)
-                media_type = _sniff_type(media_type, bytes(body))
+                media_type = sniff_media_type(media_type, bytes(body))
                 if media_type not in accept:
                     raise FetchError(
                         f"{url} is {media_type or 'an unknown type'}, which isn't supported. "

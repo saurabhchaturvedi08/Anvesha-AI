@@ -1,0 +1,29 @@
+# SearXNG settings for Anvesha's bundled web search (free, no API key needed).
+# Only Anvesha's backend uses it. The port compose publishes is bound to 127.0.0.1.
+# Reference: https://docs.searxng.org/admin/settings/index.html
+
+use_default_settings:
+  engines:
+    # Not useful for research, and they log errors without extra configuration.
+    remove:
+      - openstreetmap
+      - photon
+      - torch
+      - ahmia
+
+general:
+  instance_name: "Anvesha search"
+
+server:
+  # server.secret_key comes from the SEARXNG_SECRET environment variable.
+  # The rate limiter protects public instances from bots; this one is private.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  # Anvesha reads results as JSON.
+  formats:
+    - html
+    - json

@@ -14,7 +14,7 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 
 - [x] **Phase 0: Foundation.** FastAPI backend, PostgreSQL, migrations, Docker Compose, CI.
 - [x] **Phase 1: Model gateway.** Bring your own key for OpenAI, Anthropic, Gemini, OpenRouter, Groq, Mistral, Ollama, or any OpenAI-compatible server; encrypted key storage; per-role models; usage and cost tracking.
-- [ ] Phase 2: Research tools (web search, scholarly sources, page and PDF reading)
+- [x] **Phase 2: Research tools.** Web search (bundled SearXNG, free; or Tavily, Brave, Exa), scholarly search (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed), safe page and PDF reading, uploads, hybrid keyword and semantic search, deterministic quote verification.
 - [ ] Phase 3: Multi-agent research graph
 - [ ] Phase 4: Web app
 - [ ] Phase 5: MCP server
@@ -44,16 +44,31 @@ From the API docs page (a web app comes in Phase 4):
 
 If you self-host for yourself, you can instead put keys in `.env` (for example `ANVESHA_OPENAI_API_KEY`); see `.env.example`.
 
+For semantic search over your sources, also pick an **embedding model**: `PUT /api/v1/model-preferences/embedding` (for example OpenAI `text-embedding-3-small`, Gemini `gemini-embedding-001`, or Ollama `nomic-embed-text`). Without one, source search uses keywords only. Anthropic has no embeddings API.
+
+### Search and gather sources
+
+Docker Compose runs a private [SearXNG](https://docs.searxng.org/) instance, so web search works with no API key. Scholarly search uses free public APIs.
+
+- **Web search:** `POST /api/v1/search/web` with `{"query": "..."}`. To use a paid search API instead, add a key with `PUT /api/v1/search/providers/{tavily|brave|exa}/credential`.
+- **Papers:** `POST /api/v1/search/scholarly` with `{"query": "...", "sources": ["openalex", "arxiv", "pubmed"]}`. Setting `ANVESHA_SCHOLAR_CONTACT_EMAIL` gets faster access from OpenAlex, Crossref and PubMed. Semantic Scholar rate-limits heavily without an API key.
+- **Save a page or PDF to a project:** `POST /api/v1/projects/{id}/sources` with `{"url": "..."}`, or upload a file to `POST /api/v1/projects/{id}/sources/upload` (PDF, text, Markdown, HTML).
+- **Search saved sources:** `POST /api/v1/projects/{id}/sources/search`.
+- **Check a quote:** `POST /api/v1/projects/{id}/verify-quote` with `{"source_id": "...", "quote": "..."}`. It passes only if the quote appears in the source word for word, allowing for case, typographic quotes, whitespace and PDF line breaks.
+- **Try the agents' tools directly:** `GET /api/v1/tools`, then `POST /api/v1/projects/{id}/tools/{name}`.
+
+Fetching is locked down: only public http(s) addresses (no localhost, private networks or cloud metadata, checked on every connection and redirect), with size, time and file-type limits. When agents fetch pages, they respect robots.txt.
+
 ## Development
 
 Requires [uv](https://docs.astral.sh/uv/) (it installs the right Python version for you) and Docker for PostgreSQL.
 
 ```bash
-docker compose up -d postgres         # database only
+docker compose up -d postgres searxng # database and web search only
 cd backend
 uv sync                               # create the virtualenv and install dependencies
 uv run alembic upgrade head           # apply database migrations
-uv run uvicorn anvesha.api.app:create_app --factory --reload
+ANVESHA_SEARXNG_URL=http://localhost:8888 uv run uvicorn anvesha.api.app:create_app --factory --reload
 ```
 
 Checks (the same ones CI runs):
@@ -75,12 +90,20 @@ backend/
     api/          FastAPI app, routers, request/response schemas
     db/           SQLAlchemy models and session management
     llm/          model gateway: provider catalog, adapters, credentials, budgets, pricing
+    search/       web search providers (SearXNG, Tavily, Brave, Exa)
+    scholar/      scholarly APIs (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed)
+    web/          safe fetching: SSRF-proof transport, robots.txt, limits
+    ingest/       text extraction (HTML, PDF) and chunking
+    sources/      saving sources, embeddings, hybrid search
+    verify/       deterministic quote verification
+    tools/        the tools agents call (shared with the future MCP server)
     config.py     all settings (ANVESHA_* environment variables)
     crypto.py     encryption for stored API keys
     tenancy.py    users, workspaces, and request scoping
   alembic/        database migrations
   tests/
 docs/             architecture, decisions, product
+infra/            configuration for bundled services (SearXNG)
 legacy/           v1 backend and desktop app (reference only)
 compose.yaml      self-hosted stack
 ```

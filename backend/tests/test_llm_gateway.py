@@ -9,7 +9,7 @@ from anvesha.db.models import ModelPreference, ProviderCredential, UsageEvent
 from anvesha.llm.budget import Budget
 from anvesha.llm.credentials import credential_aad
 from anvesha.llm.errors import BudgetExceededError, LLMAuthError, ModelNotConfiguredError
-from anvesha.llm.gateway import LLMGateway
+from anvesha.llm.gateway import EMBEDDING_BATCH_SIZE, LLMGateway
 from anvesha.llm.types import Message
 from tests.conftest import FakeAdapter, make_settings
 
@@ -150,3 +150,36 @@ async def test_auth_failure_is_recorded_and_marks_workspace_key_invalid(
     async with app.state.db.session() as session:
         credential = await session.scalar(select(ProviderCredential))
     assert credential is not None and credential.status == "invalid"
+
+
+async def test_embeddings_are_batched_priced_and_recorded(
+    app: FastAPI, fake_llm: FakeAdapter
+) -> None:
+    workspace_id = app.state.local_principal.workspace_id
+    gateway = _gateway(app)
+    assert await gateway.embedding_route(workspace_id) is None
+    with pytest.raises(ModelNotConfiguredError, match="embedding role"):
+        await gateway.embed(workspace_id=workspace_id, texts=["x"])
+
+    await _prefer(app, "embedding", "openai", "text-embedding-3-small")
+    texts = [f"passage {i}" for i in range(EMBEDDING_BATCH_SIZE + 6)]
+    result = await gateway.embed(workspace_id=workspace_id, texts=texts)
+
+    assert len(result.vectors) == len(texts)
+    assert [len(batch) for batch in fake_llm.embed_calls] == [EMBEDDING_BATCH_SIZE, 6]
+    assert result.model == "text-embedding-3-small"
+    assert result.cost_usd is not None and result.cost_usd > 0
+    events = await _usage(app)
+    assert [(e.role, e.status) for e in events] == [("embedding", "ok")] * 2
+
+
+async def test_anthropic_cannot_be_the_embedding_provider(
+    app: FastAPI, fake_llm: FakeAdapter
+) -> None:
+    await _add_workspace_key(app, "anthropic", "sk-ant-workspace")
+    await _prefer(app, "embedding", "anthropic", "claude-haiku-4-5")
+    workspace_id = app.state.local_principal.workspace_id
+    assert await _gateway(app).embedding_route(workspace_id) is None
+    with pytest.raises(ModelNotConfiguredError, match="no embeddings API"):
+        await _gateway(app).embed(workspace_id=workspace_id, texts=["x"])
+    assert fake_llm.embed_calls == []

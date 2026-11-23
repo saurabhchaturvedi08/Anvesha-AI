@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from anvesha.api.deps import PrincipalDep, SessionDep
+from anvesha.api.deps import PrincipalDep, SessionDep, SourceServiceDep
 from anvesha.api.schemas.projects import ProjectCreate, ProjectRead, ProjectUpdate
 from anvesha.db.models import Project
 from anvesha.tenancy import Principal
@@ -78,9 +78,11 @@ async def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
-    project_id: uuid.UUID, session: SessionDep, principal: PrincipalDep
+    project_id: uuid.UUID, session: SessionDep, principal: PrincipalDep, sources: SourceServiceDep
 ) -> Response:
     project = await _get_project(session, principal, project_id)
     await session.delete(project)
     await session.commit()
+    # Rows cascade in the database; stored files (PDFs) are removed separately.
+    await sources.delete_project_files(principal.workspace_id, project_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

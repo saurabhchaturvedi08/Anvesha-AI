@@ -9,7 +9,10 @@ from anvesha.config import Settings
 from anvesha.crypto import SecretBox
 from anvesha.db.session import Database
 from anvesha.llm.gateway import LLMGateway
+from anvesha.sources.service import SourceService
+from anvesha.storage import FileStorage
 from anvesha.tenancy import Principal
+from anvesha.tools import ToolRegistry
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -42,6 +45,18 @@ def get_gateway(request: Request) -> LLMGateway:
     return cast(LLMGateway, request.app.state.gateway)
 
 
+def get_storage(request: Request) -> FileStorage:
+    return cast(FileStorage, request.app.state.storage)
+
+
+def get_source_service(request: Request) -> SourceService:
+    return cast(SourceService, request.app.state.sources)
+
+
+def get_tools(request: Request) -> ToolRegistry:
+    return cast(ToolRegistry, request.app.state.tools)
+
+
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 DatabaseDep = Annotated[Database, Depends(get_database)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -49,3 +64,6 @@ PrincipalDep = Annotated[Principal, Depends(get_principal)]
 VaultDep = Annotated[SecretBox | None, Depends(get_vault)]
 HttpDep = Annotated[httpx2.AsyncClient, Depends(get_http)]
 GatewayDep = Annotated[LLMGateway, Depends(get_gateway)]
+StorageDep = Annotated[FileStorage, Depends(get_storage)]
+SourceServiceDep = Annotated[SourceService, Depends(get_source_service)]
+ToolsDep = Annotated[ToolRegistry, Depends(get_tools)]
