@@ -8,13 +8,26 @@ that answers in prose or with invalid arguments is told what went wrong and aske
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from pydantic import BaseModel, ValidationError
 
-from anvesha.agents.context import RunContext
 from anvesha.llm.errors import LLMInvalidResponseError
-from anvesha.llm.types import AgentRole, Message, ToolSpec
+from anvesha.llm.types import AgentRole, Completion, Message, ToolSpec
 from anvesha.tools.base import tool_parameters_schema
+
+
+class Completer(Protocol):
+    """Anything that makes model calls for an agent (a run's context, a chat reply)."""
+
+    async def complete(
+        self,
+        role: AgentRole,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ToolSpec] = (),
+        max_tokens: int | None = None,
+    ) -> Completion: ...
 
 
 @dataclass(frozen=True)
@@ -38,7 +51,7 @@ def validation_problems(exc: ValidationError, limit: int = 6) -> str:
 
 
 async def structured_call[M: BaseModel](
-    ctx: RunContext,
+    ctx: Completer,
     *,
     role: AgentRole,
     messages: Sequence[Message],

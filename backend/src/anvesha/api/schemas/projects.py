@@ -32,6 +32,15 @@ class ProjectUpdate(BaseModel):
         return self
 
 
+class ProjectRunBrief(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: Literal["queued", "running", "awaiting_approval", "completed", "failed", "cancelled"]
+    created_at: datetime
+    finished_at: datetime | None
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,3 +50,6 @@ class ProjectRead(BaseModel):
     depth: Depth
     created_at: datetime
     updated_at: datetime
+    latest_run: ProjectRunBrief | None = Field(
+        default=None, description="The project's most recent research run."
+    )

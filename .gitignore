@@ -45,3 +45,9 @@ coverage/
 
 # Locally generated master key (see ANVESHA_SECRET_KEY_FILE)
 .anvesha/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo

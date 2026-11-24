@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from anvesha.agents.context import RunContext
 from anvesha.db.models import Finding, Source, SubQuestion
+from anvesha.db.session import Database
 
 # Findings the writer may cite: the quote is in the source, and the verifier either
 # agreed it supports the statement or couldn't review it.
@@ -44,14 +45,20 @@ async def load_sub_questions(ctx: RunContext) -> list[SubQuestion]:
 async def load_findings(
     ctx: RunContext, statuses: Sequence[str] = CITABLE_STATUSES
 ) -> list[FindingView]:
+    return await load_run_findings(ctx.db, ctx.run_id, statuses)
+
+
+async def load_run_findings(
+    db: Database, run_id: uuid.UUID, statuses: Sequence[str] = CITABLE_STATUSES
+) -> list[FindingView]:
     """Findings in a stable order: by sub-question (plan order), then as recorded."""
-    async with ctx.db.session() as session:
+    async with db.session() as session:
         rows = (
             await session.execute(
                 select(Finding, Source)
                 .join(Source, Source.id == Finding.source_id)
                 .outerjoin(SubQuestion, SubQuestion.id == Finding.sub_question_id)
-                .where(Finding.run_id == ctx.run_id, Finding.status.in_(statuses))
+                .where(Finding.run_id == run_id, Finding.status.in_(statuses))
                 .order_by(
                     SubQuestion.round.nulls_last(),
                     SubQuestion.ordinal.nulls_last(),
