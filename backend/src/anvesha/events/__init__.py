@@ -1,5 +1,7 @@
 """Run activity events: stored in ``run_events`` and announced with Postgres NOTIFY.
 
+Chat replies use the same channel to announce progress (keyed by the reply's id).
+
 The table is the source of truth (clients replay from it after reconnecting); the
 notification only wakes up streams that are waiting, so a missed one costs latency,
 never data.
@@ -45,8 +47,13 @@ async def add_event(
     )
     session.add(event)
     await session.flush()
-    await session.execute(select(func.pg_notify(CHANNEL, str(run_id))))
+    await notify(session, run_id)
     return event
+
+
+async def notify(session: AsyncSession, key: uuid.UUID) -> None:
+    """Wake streams following ``key`` (a run, or a chat reply) when the transaction commits."""
+    await session.execute(select(func.pg_notify(CHANNEL, str(key))))
 
 
 async def emit(

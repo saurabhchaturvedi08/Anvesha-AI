@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply-chain guard (same rule as the backend's uv exclude-newer): ignore package
+# releases younger than 7 days. Malicious releases are usually pulled within hours.
+minimumReleaseAge: 10080
+
+peerDependencyRules:
+  allowedVersions:
+    # openapi-typescript declares TypeScript 5 but works with 6 (generation only).
+    openapi-typescript>typescript: "6"

@@ -45,8 +45,14 @@ def _source_entry(number: int, finding: FindingView) -> str:
     return " ".join(parts)
 
 
-def render_citations(draft: str, findings: list[FindingView]) -> RenderedReport:
-    """``findings[i]`` is the writer's ``F{i+1}``."""
+def render_citations(
+    draft: str, findings: list[FindingView], *, sources_section: bool = True
+) -> RenderedReport:
+    """``findings[i]`` is the writer's ``F{i+1}``.
+
+    ``sources_section`` appends a generated "## Sources" list (reports). Chat replies
+    leave it out and show their sources from ``citations`` instead.
+    """
     by_label = {f"F{index}": finding for index, finding in enumerate(findings, start=1)}
     source_numbers: dict[str, int] = {}
     source_findings: dict[str, list[str]] = {}
@@ -96,7 +102,7 @@ def render_citations(draft: str, findings: list[FindingView]) -> RenderedReport:
                 "finding_ids": source_findings[key],
             }
         )
-    if entries:
+    if entries and sources_section:
         body += "\n\n## Sources\n\n" + "\n".join(entries)
     report.markdown = body + "\n"
     return report

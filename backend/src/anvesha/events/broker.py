@@ -1,4 +1,4 @@
-"""Wakes up event streams when a run has new events (Postgres LISTEN on one connection).
+"""Wakes up event streams when a run (or chat reply) changes: Postgres LISTEN on one connection.
 
 One listening connection per API process serves every open stream. If it drops, the
 broker reconnects in the background; meanwhile streams fall back to polling.
@@ -42,10 +42,13 @@ class RunEventBroker:
             self._task = None
 
     @contextlib.contextmanager
-    def subscribe(self, run_id: uuid.UUID) -> Iterator[asyncio.Event]:
-        """An event that is set whenever the run gets new events. Clear it before reading."""
+    def subscribe(self, key_id: uuid.UUID) -> Iterator[asyncio.Event]:
+        """An event that is set whenever ``key_id`` (a run, or a chat reply) is notified.
+
+        Clear it before reading the current state.
+        """
         waiter = asyncio.Event()
-        key = str(run_id)
+        key = str(key_id)
         self._waiters[key].add(waiter)
         try:
             yield waiter

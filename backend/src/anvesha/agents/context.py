@@ -108,3 +108,35 @@ class RunContext:
             project_id=self.project_id,
             run_id=self.run_id,
         )
+
+
+@dataclass
+class WorkspaceCompleter:
+    """Model calls outside a research run (clarifying a question, chat replies).
+
+    Usage is recorded against the workspace (and project, if any) and counted against
+    ``budget``.
+    """
+
+    gateway: LLMGateway
+    workspace_id: uuid.UUID
+    budget: Budget
+    project_id: uuid.UUID | None = None
+
+    async def complete(
+        self,
+        role: AgentRole,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ToolSpec] = (),
+        max_tokens: int | None = None,
+    ) -> Completion:
+        return await self.gateway.complete(
+            workspace_id=self.workspace_id,
+            role=role,
+            messages=messages,
+            tools=tools,
+            max_tokens=max_tokens,
+            budget=self.budget,
+            project_id=self.project_id,
+        )

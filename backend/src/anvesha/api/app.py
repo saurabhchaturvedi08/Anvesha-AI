@@ -8,7 +8,9 @@ from sqlalchemy.exc import ProgrammingError
 
 from anvesha import __version__
 from anvesha.api.routers import (
+    chat,
     health,
+    meta,
     model_preferences,
     projects,
     providers,
@@ -18,6 +20,7 @@ from anvesha.api.routers import (
     tools,
     usage,
 )
+from anvesha.chat import ChatService
 from anvesha.config import Settings, get_settings
 from anvesha.errors import AppError
 from anvesha.events.broker import RunEventBroker
@@ -55,13 +58,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Runs execute in the worker; the API only queues them and streams progress.
             queue = JobQueue(settings)
             broker = RunEventBroker(settings.postgres_dsn)
+            # Chat replies are written in this process, in the background.
+            chat_replies = ChatService(settings)
             app.state.queue = queue
             app.state.broker = broker
+            app.state.chat = chat_replies
             async with queue.app.open_async():
                 await broker.start()
                 try:
                     yield
                 finally:
+                    await chat_replies.aclose()
                     await broker.stop()
 
     app = FastAPI(title="Anvesha API", version=__version__, lifespan=lifespan)
@@ -79,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     app.include_router(health.router)
+    app.include_router(meta.router)
     app.include_router(projects.router)
     app.include_router(providers.router)
     app.include_router(model_preferences.router)
@@ -87,4 +95,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sources.router)
     app.include_router(tools.router)
     app.include_router(runs.router)
+    app.include_router(chat.router)
     return app

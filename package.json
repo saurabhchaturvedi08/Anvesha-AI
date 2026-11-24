@@ -1,0 +1,18 @@
+{
+  "name": "anvesha",
+  "private": true,
+  "description": "Anvesha web app and shared TypeScript packages (the backend lives in backend/).",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @anvesha/web dev",
+    "build": "pnpm --filter @anvesha/web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "api:generate": "pnpm --filter @anvesha/api-client generate"
+  }
+}

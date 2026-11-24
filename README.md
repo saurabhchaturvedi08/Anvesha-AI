@@ -16,7 +16,7 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 1: Model gateway.** Bring your own key for OpenAI, Anthropic, Gemini, OpenRouter, Groq, Mistral, Ollama, or any OpenAI-compatible server; encrypted key storage; per-role models; usage and cost tracking.
 - [x] **Phase 2: Research tools.** Web search (bundled SearXNG, free; or Tavily, Brave, Exa), scholarly search (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed), safe page and PDF reading, uploads, hybrid keyword and semantic search, deterministic quote verification.
 - [x] **Phase 3: Research agents.** A lead researcher plans (you approve or edit the plan), researcher agents investigate in parallel, a verifier checks every quote in code and with a model, and a writer produces a cited report. Runs execute in a background worker, survive restarts, stream live progress, and stop at a spending limit with a partial report.
-- [ ] Phase 4: Web app
+- [x] **Phase 4: Web app.** A guided new-research flow (with optional question refinement), live agent activity, plan review and editing, reports with hoverable citations that show the quoted evidence, a sources and evidence explorer, a Research Assistant chat that answers from the project's evidence, and settings for keys, models, search and usage.
 - [ ] Phase 5: MCP server
 - [ ] Phases 6–8: Evals, hosted SaaS, desktop
 
@@ -27,39 +27,47 @@ The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
 Requires [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
-cp .env.example .env        # change POSTGRES_PORT / API_PORT if those ports are taken
+cp .env.example .env        # change POSTGRES_PORT / API_PORT / WEB_PORT if those ports are taken
 docker compose up --build
 ```
 
-Then open the API docs at <http://localhost:8000/docs>.
+Then open the web app at <http://localhost:3000>. (The API's interactive docs are at <http://localhost:8000/docs>.)
 
-### Connect a model
+Anvesha runs in single-user mode for now: anyone who can reach the app can use it. Docker Compose publishes it on localhost only; don't expose it to a network until multi-user sign-in arrives (Phase 7).
 
-From the API docs page (a web app comes in Phase 4):
+### First-time setup
 
-1. **Add a key:** `PUT /api/v1/providers/{provider}/credential` with `{"api_key": "..."}`. The key is checked with the provider, then stored encrypted. For local models, install [Ollama](https://ollama.com) and use provider `ollama` with no key. (In Docker, first set `ANVESHA_OLLAMA_BASE_URL=http://host.docker.internal:11434/v1` in `.env`.)
-2. **See available models:** `GET /api/v1/providers/{provider}/models`.
-3. **Pick a model for each agent role** (`lead`, `researcher`, `verifier`, `writer`): `PUT /api/v1/model-preferences/{role}` with `{"provider": "...", "model": "..."}`. A strong model suits `lead` and `writer`; a fast, cheap one suits `researcher`.
-4. **Check it works:** `POST /api/v1/llm/test`. Spending shows up at `GET /api/v1/usage`.
+Open **Settings**:
+
+1. **Connect a model provider.** Paste an API key for OpenAI, Anthropic, Gemini, OpenRouter, Groq or Mistral (it's checked with the provider, then stored encrypted), or set up a local [Ollama](https://ollama.com) server for free models. In Docker, Ollama on your computer is at `http://host.docker.internal:11434/v1`.
+2. **Choose a model for each agent.** The lead researcher plans and reviews (use your strongest model), researchers search and read in parallel (a fast, affordable model works well), the verifier checks quotes, and the writer writes the report. The test button sends a short message to check each one.
+3. **Optional:** an embedding model adds semantic search over saved sources (for example OpenAI `text-embedding-3-small` or Ollama `nomic-embed-text`), and a paid search API (Tavily, Brave, Exa) can replace the bundled SearXNG.
 
 If you self-host for yourself, you can instead put keys in `.env` (for example `ANVESHA_OPENAI_API_KEY`); see `.env.example`.
 
-For semantic search over your sources, also pick an **embedding model**: `PUT /api/v1/model-preferences/embedding` (for example OpenAI `text-embedding-3-small`, Gemini `gemini-embedding-001`, or Ollama `nomic-embed-text`). Without one, source search uses keywords only. Anthropic has no embeddings API.
+### Research a question
 
-### Run research
+1. **New research:** describe what you want to find out. The lead researcher can suggest clarifying questions first (scope, period, region), and you can attach your own links and files.
+2. **Choose the depth and a spending limit.** `Quick`, `Standard` or `Deep` sets how many researchers, rounds and steps the agents get. When the limit is reached, research stops and a report is written from what was found.
+3. **Review the plan.** The lead proposes sub-questions; edit, remove or add them, then approve. (Or turn off plan review to run straight through.)
+4. **Watch the agents work:** searches, pages read, findings recorded, quotes rejected, and verification, live.
+5. **Read the report.** Hover or tap a citation to see the exact quotes behind it. Download it as Markdown or print it to PDF.
+6. **Explore and ask.** The Sources tab shows every page and paper read (with the quoted passage highlighted), the Evidence tab lists each finding and why any were rejected, and Chat answers follow-up questions from the project's evidence, citing checked quotes.
 
-With models chosen for all four agent roles:
+Runs keep going if you close the browser. You can cancel a run, and retry a failed one from its last completed step (for example after fixing a key).
 
-1. **Start:** `POST /api/v1/projects/{id}/runs` with `{}` (researches the project's objective), or with options such as `{"autopilot": true, "depth": "deep", "max_cost_usd": "1.00"}`. Depth `quick`, `standard` or `deep` sets how many sub-questions, research rounds and steps the agents get.
-2. **Follow along:** `GET /api/v1/runs/{id}/events/stream` streams the agents' activity as Server-Sent Events (searches, pages read, findings, verification), replaying earlier events first. `GET /api/v1/runs/{id}` shows status, the plan, sub-questions and cost so far.
-3. **Approve the plan:** unless `autopilot` is set, the run pauses with status `awaiting_approval` once the lead has a plan. Continue with `POST /api/v1/runs/{id}/approve` (`{}` as proposed, or `{"sub_questions": [{"question": "..."}]}` to change it).
-4. **Read the report:** `GET /api/v1/runs/{id}/report` (Markdown with numbered citations and a source list), and the evidence behind it at `GET /api/v1/runs/{id}/findings`.
+### Use the API
 
-`POST /api/v1/runs/{id}/cancel` stops a run within seconds. `POST /api/v1/runs/{id}/retry` continues a failed run from its last completed step (for example after fixing a key). Each run has a spending limit (`ANVESHA_RUN_DEFAULT_MAX_COST_USD`, default $2); when it is reached, research stops and the report is written from what was found.
+Everything the web app does goes through the REST API, documented at <http://localhost:8000/docs>:
+
+- **Models:** `PUT /api/v1/providers/{provider}/credential`, `GET /api/v1/providers/{provider}/models`, `PUT /api/v1/model-preferences/{role}`, `POST /api/v1/llm/test`, `GET /api/v1/usage`.
+- **Runs:** `POST /api/v1/projects/{id}/runs` (options such as `{"autopilot": true, "depth": "deep", "max_cost_usd": "1.00"}`), `GET /api/v1/runs/{id}/events/stream` (live activity as Server-Sent Events, replaying earlier events first), `POST /api/v1/runs/{id}/approve` (`{}`, or `{"sub_questions": [{"question": "..."}]}` to change the plan), `/cancel`, `/retry`, `GET /api/v1/runs/{id}/report` and `/findings`.
+- **Chat:** `POST /api/v1/projects/{id}/chats`, then `POST /api/v1/chats/{id}/messages` with `{"content": "..."}`. The reply is written in the background; follow it at `GET /api/v1/chat-messages/{id}/stream`. Chat uses the `lead` role's model and a per-reply spending limit (`ANVESHA_CHAT_MAX_COST_USD`, default $0.25).
+- **Refine a question:** `POST /api/v1/clarify` with `{"question": "..."}`.
 
 ### Search and gather sources
 
-Docker Compose runs a private [SearXNG](https://docs.searxng.org/) instance, so web search works with no API key. Scholarly search uses free public APIs.
+Docker Compose runs a private [SearXNG](https://docs.searxng.org/) instance, so web search works with no API key. Scholarly search uses free public APIs. These endpoints are what the agents use, and you can call them directly:
 
 - **Web search:** `POST /api/v1/search/web` with `{"query": "..."}`. To use a paid search API instead, add a key with `PUT /api/v1/search/providers/{tavily|brave|exa}/credential`.
 - **Papers:** `POST /api/v1/search/scholarly` with `{"query": "...", "sources": ["openalex", "arxiv", "pubmed"]}`. Setting `ANVESHA_SCHOLAR_CONTACT_EMAIL` gets faster access from OpenAlex, Crossref and PubMed. Semantic Scholar rate-limits heavily without an API key.
@@ -72,7 +80,7 @@ Fetching is locked down: only public http(s) addresses (no localhost, private ne
 
 ## Development
 
-Requires [uv](https://docs.astral.sh/uv/) (it installs the right Python version for you) and Docker for PostgreSQL.
+Requires [uv](https://docs.astral.sh/uv/) (it installs the right Python version for you), Docker for PostgreSQL, and for the web app [Node.js](https://nodejs.org) 22 or newer with [pnpm](https://pnpm.io) (`npm install -g pnpm`).
 
 ```bash
 docker compose up -d postgres searxng # database and web search only
@@ -83,22 +91,46 @@ ANVESHA_SEARXNG_URL=http://localhost:8888 uv run uvicorn anvesha.api.app:create_
 ANVESHA_SEARXNG_URL=http://localhost:8888 uv run python -m anvesha.worker   # in a second terminal
 ```
 
+The web app, in a third terminal from the repository root (it forwards API calls to `ANVESHA_API_URL`, default `http://127.0.0.1:8000`):
+
+```bash
+pnpm install
+pnpm dev                              # http://localhost:3000
+```
+
 On Windows, if connections to `localhost` hang, use `127.0.0.1` in `ANVESHA_DATABASE_URL` (Docker listens on IPv4 only).
 
 Checks (the same ones CI runs):
 
 ```bash
+cd backend
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pytest                         # uses a separate anvesha_test database
+cd ..
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 After changing a model in `src/anvesha/db/models/`, create a migration with
 `uv run alembic revision --autogenerate -m "describe the change"` and review the generated file.
 
+After changing the API, regenerate the web app's typed client (CI checks it's up to date):
+
+```bash
+cd backend && uv run python -m anvesha.api.openapi ../packages/api-client/openapi.json
+cd .. && pnpm api:generate
+```
+
+JavaScript dependencies follow the same supply-chain rule as Python ones: pnpm ignores releases younger than 7 days (`minimumReleaseAge` in `pnpm-workspace.yaml`).
+
 ## Repository layout
 
 ```text
+apps/
+  web/            Next.js web app (App Router, Tailwind, TanStack Query)
+    src/app/api/  forwards /api/v1 to the backend (streams uploads and live events)
+packages/
+  api-client/     typed API client generated from the backend's OpenAPI schema
 backend/
   src/anvesha/
     api/          FastAPI app, routers, request/response schemas
@@ -111,11 +143,12 @@ backend/
     sources/      saving sources, embeddings, hybrid search
     verify/       deterministic quote verification
     tools/        the tools agents call (shared with the future MCP server)
-    agents/       lead, researcher, verifier and writer agents, prompts, citations
+    agents/       lead, researcher, verifier, writer, clarifier and chat assistant; prompts; citations
     graph/        the LangGraph research graph, checkpoints, and the run executor
     worker/       background worker and job queue (Procrastinate)
     events/       run activity events: storage, LISTEN/NOTIFY, Server-Sent Events
     runs.py       starting, approving, cancelling and retrying runs
+    chat.py       project chat: messages, background replies, progress
     migrate.py    one command for all schemas (`python -m anvesha.migrate`)
     config.py     all settings (ANVESHA_* environment variables)
     crypto.py     encryption for stored API keys

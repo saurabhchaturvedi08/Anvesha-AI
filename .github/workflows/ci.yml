@@ -43,6 +43,34 @@ jobs:
         run: uv run mypy
       - name: Test
         run: uv run pytest -q
+      - name: OpenAPI schema is up to date
+        run: |
+          uv run python -m anvesha.api.openapi "$RUNNER_TEMP/openapi.json"
+          diff -u ../packages/api-client/openapi.json "$RUNNER_TEMP/openapi.json"             || (echo "Run: uv run python -m anvesha.api.openapi ../packages/api-client/openapi.json && pnpm api:generate" && exit 1)
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generated API client is up to date
+        run: pnpm --filter @anvesha/api-client check
+      - name: Lint
+        run: pnpm lint
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
 
   docker:
     runs-on: ubuntu-latest
@@ -50,3 +78,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build backend image
         run: docker build backend
+      - name: Build web image
+        run: docker build -f apps/web/Dockerfile .

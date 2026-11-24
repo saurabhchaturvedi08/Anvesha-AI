@@ -1,0 +1,23 @@
+{
+  "name": "@anvesha/api-client",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Typed client for the Anvesha API, generated from its OpenAPI schema.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/schema.d.ts --default-non-nullable false",
+    "check": "openapi-typescript openapi.json -o src/schema.d.ts --default-non-nullable false --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~6.0.3"
+  }
+}

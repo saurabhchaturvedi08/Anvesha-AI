@@ -121,6 +121,16 @@ class Settings(BaseSettings):
     # Research runs one worker process executes at the same time.
     worker_concurrency: int = Field(default=4, ge=1, le=64)
 
+    # --- Project chat (Research Assistant) ------------------------------------------------
+    # Spending limit for writing one chat reply. None: no limit.
+    chat_max_cost_usd: Decimal | None = Decimal("0.25")
+    # Model responses (tool-calling steps) the assistant may use for one reply.
+    chat_max_steps: int = Field(default=8, ge=2, le=30)
+    # A reply still being written after this long is reported as failed.
+    chat_reply_timeout_seconds: int = Field(default=240, ge=30)
+    # Replies one API process writes at the same time; more wait their turn.
+    chat_max_concurrent_replies: int = Field(default=8, ge=1, le=128)
+
     @field_validator(
         "secret_key",
         "previous_secret_keys",
@@ -145,6 +155,7 @@ class Settings(BaseSettings):
         "run_default_max_cost_usd",
         "run_max_cost_ceiling_usd",
         "run_default_max_tokens",
+        "chat_max_cost_usd",
         mode="before",
     )
     @classmethod
