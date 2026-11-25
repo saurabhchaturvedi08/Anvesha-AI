@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a remote MCP server at `/mcp` (Streamable HTTP) with research, report and evidence tools plus the research agents' own tools, authenticated with revocable access tokens (`/api/v1/access-tokens`, `python -m anvesha.access_tokens`)
 - Added the open-source launch preparation foundation for release readiness
 - Documented contributor workflow and validation steps
 - Added packaging validation and release-checklist guidance

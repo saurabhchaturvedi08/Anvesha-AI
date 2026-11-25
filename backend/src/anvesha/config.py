@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     # Research runs one worker process executes at the same time.
     worker_concurrency: int = Field(default=4, ge=1, le=64)
 
+    # --- MCP server ------------------------------------------------------------------------
+    # Serve Anvesha's research tools to MCP clients (Claude, ChatGPT, Gemini CLI, Cursor) at
+    # /mcp. Clients need an access token (Settings → Access tokens, or
+    # `python -m anvesha.access_tokens create`).
+    mcp_enabled: bool = True
+
     # --- Project chat (Research Assistant) ------------------------------------------------
     # Spending limit for writing one chat reply. None: no limit.
     chat_max_cost_usd: Decimal | None = Decimal("0.25")

@@ -17,7 +17,7 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 2: Research tools.** Web search (bundled SearXNG, free; or Tavily, Brave, Exa), scholarly search (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed), safe page and PDF reading, uploads, hybrid keyword and semantic search, deterministic quote verification.
 - [x] **Phase 3: Research agents.** A lead researcher plans (you approve or edit the plan), researcher agents investigate in parallel, a verifier checks every quote in code and with a model, and a writer produces a cited report. Runs execute in a background worker, survive restarts, stream live progress, and stop at a spending limit with a partial report.
 - [x] **Phase 4: Web app.** A guided new-research flow (with optional question refinement), live agent activity, plan review and editing, reports with hoverable citations that show the quoted evidence, a sources and evidence explorer, a Research Assistant chat that answers from the project's evidence, and settings for keys, models, search and usage.
-- [ ] Phase 5: MCP server
+- [ ] **Phase 5: MCP server** (in progress). Done: a remote MCP endpoint for Claude Code, Cursor, Gemini CLI and other clients that accept a token, with research, report and evidence tools plus the agents' own search, reading and quote-checking tools. Next: OAuth sign-in for claude.ai and ChatGPT connectors.
 - [ ] Phases 6–8: Evals, hosted SaaS, desktop
 
 The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
@@ -64,6 +64,38 @@ Everything the web app does goes through the REST API, documented at <http://loc
 - **Runs:** `POST /api/v1/projects/{id}/runs` (options such as `{"autopilot": true, "depth": "deep", "max_cost_usd": "1.00"}`), `GET /api/v1/runs/{id}/events/stream` (live activity as Server-Sent Events, replaying earlier events first), `POST /api/v1/runs/{id}/approve` (`{}`, or `{"sub_questions": [{"question": "..."}]}` to change the plan), `/cancel`, `/retry`, `GET /api/v1/runs/{id}/report` and `/findings`.
 - **Chat:** `POST /api/v1/projects/{id}/chats`, then `POST /api/v1/chats/{id}/messages` with `{"content": "..."}`. The reply is written in the background; follow it at `GET /api/v1/chat-messages/{id}/stream`. Chat uses the `lead` role's model and a per-reply spending limit (`ANVESHA_CHAT_MAX_COST_USD`, default $0.25).
 - **Refine a question:** `POST /api/v1/clarify` with `{"question": "..."}`.
+
+### Use from Claude Code, Cursor, Gemini CLI and other MCP clients
+
+Anvesha is also an [MCP](https://modelcontextprotocol.io) server at `http://localhost:8000/mcp` (Streamable HTTP). Your AI assistant can hand research to Anvesha's agents, read the cited reports, and search the verified evidence. It can also research by itself with Anvesha's search, reading and quote-checking tools, so every quote it relies on is checked in code.
+
+1. **Create an access token.** It is shown once, so copy it:
+
+   ```bash
+   docker compose exec api python -m anvesha.access_tokens create --name "Claude Code"
+   ```
+
+   (Or `POST /api/v1/access-tokens` with `{"name": "..."}`. `list` and `revoke <id>` manage tokens.)
+
+2. **Add the server to your client**, sending the token as a bearer token:
+
+   - **Claude Code:** `claude mcp add --transport http anvesha http://localhost:8000/mcp --header "Authorization: Bearer anv_..."`
+   - **Cursor** (`.cursor/mcp.json`) and other clients that take JSON config: `{"mcpServers": {"anvesha": {"url": "http://localhost:8000/mcp", "headers": {"Authorization": "Bearer anv_..."}}}}`
+   - **Gemini CLI** (`settings.json`): the same, with `"httpUrl"` instead of `"url"`.
+
+The tools:
+
+| Tool | What it does |
+|---|---|
+| `start_research` | Runs Anvesha's research agents on a question (in a new or existing project), using the models configured in Anvesha and a spending limit. `autopilot: false` pauses for plan review. |
+| `get_research_status` | Status, plan, sub-question coverage, findings, spending and recent activity. |
+| `approve_plan`, `cancel_research` | Steer a run. |
+| `get_report` | The cited report for a run, or a project's latest; `include_quotes` adds the verified quote behind each citation. |
+| `search_evidence` | Searches a project's findings: statements, each backed by a checked quote. |
+| `list_projects`, `create_project` | Find or start a project. |
+| `web_search`, `scholar_search`, `fetch_page`, `read_source`, `search_sources`, `verify_quote`, `list_sources` | The research agents' own tools, acting on one project (`project_id`). |
+
+With `start_research`, Anvesha's agents do the reasoning on your configured models. With the raw tools, your assistant does it, so your existing AI subscription pays for it. claude.ai and ChatGPT connectors need OAuth sign-in, which is the next step of Phase 5. Set `ANVESHA_MCP_ENABLED=false` to turn the endpoint off.
 
 ### Search and gather sources
 
