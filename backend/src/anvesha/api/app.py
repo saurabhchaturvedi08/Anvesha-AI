@@ -1,13 +1,15 @@
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import ProgrammingError
+from starlette.routing import Route
 
 from anvesha import __version__
 from anvesha.api.routers import (
+    access_tokens,
     chat,
     health,
     meta,
@@ -24,6 +26,7 @@ from anvesha.chat import ChatService
 from anvesha.config import Settings, get_settings
 from anvesha.errors import AppError
 from anvesha.events.broker import RunEventBroker
+from anvesha.mcp import MCP_PATH, AnveshaMCP, McpServices
 from anvesha.services import open_services
 from anvesha.tenancy import ensure_local_principal
 from anvesha.worker.queue import JobQueue
@@ -63,7 +66,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.queue = queue
             app.state.broker = broker
             app.state.chat = chat_replies
-            async with queue.app.open_async():
+            async with AsyncExitStack() as stack:
+                await stack.enter_async_context(queue.app.open_async())
+                if mcp_server is not None:
+                    await stack.enter_async_context(mcp_server.run())
                 await broker.start()
                 try:
                     yield
@@ -72,6 +78,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     await broker.stop()
 
     app = FastAPI(title="Anvesha API", version=__version__, lifespan=lifespan)
+
+    def mcp_services() -> McpServices:
+        state = app.state
+        return McpServices(
+            settings=state.settings,
+            db=state.db,
+            vault=state.vault,
+            http=state.http,
+            gateway=state.gateway,
+            sources=state.sources,
+            tools=state.tools,
+            queue=state.queue,
+        )
+
+    mcp_server = AnveshaMCP(mcp_services) if settings.mcp_enabled else None
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -96,4 +117,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tools.router)
     app.include_router(runs.router)
     app.include_router(chat.router)
+    app.include_router(access_tokens.router)
+    if mcp_server is not None:
+        # Any HTTP method: the MCP transport answers POST, GET and DELETE itself.
+        app.router.routes.append(Route(MCP_PATH, endpoint=mcp_server.asgi_app()))
     return app

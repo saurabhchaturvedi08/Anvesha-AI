@@ -138,11 +138,7 @@ class ToolRegistry:
         try:
             args = tool.args_model.model_validate(arguments)
         except ValidationError as exc:
-            problems = "; ".join(
-                f"{'.'.join(str(p) for p in error['loc']) or 'arguments'}: {error['msg']}"
-                for error in exc.errors()[:5]
-            )
-            return ToolResult.error(f"Invalid arguments. {problems}", "invalid_arguments")
+            return invalid_arguments(exc)
         try:
             return await tool.handler(ctx, args)
         except AppError as exc:
@@ -150,6 +146,15 @@ class ToolRegistry:
         except Exception:
             logger.exception("Tool %s failed", name)
             return ToolResult.error("The tool failed unexpectedly.", "tool_failed")
+
+
+def invalid_arguments(exc: ValidationError) -> ToolResult:
+    """Say which arguments were wrong, in words a model can act on."""
+    problems = "; ".join(
+        f"{'.'.join(str(p) for p in error['loc']) or 'arguments'}: {error['msg']}"
+        for error in exc.errors()[:5]
+    )
+    return ToolResult.error(f"Invalid arguments. {problems}", "invalid_arguments")
 
 
 def untrusted(label: str, body: str) -> str:

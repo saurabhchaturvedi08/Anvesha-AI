@@ -1,6 +1,159 @@
 {
   "components": {
     "schemas": {
+      "AccessTokenCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Leave empty for a token that doesn't expire.",
+            "title": "Expires In Days"
+          },
+          "name": {
+            "examples": [
+              "Claude Code on my laptop"
+            ],
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AccessTokenCreate",
+        "type": "object"
+      },
+      "AccessTokenCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "The token's first characters, to recognise it by.",
+            "title": "Prefix",
+            "type": "string"
+          },
+          "token": {
+            "description": "The token itself. It is shown only this once.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "expires_at",
+          "last_used_at",
+          "token"
+        ],
+        "title": "AccessTokenCreated",
+        "type": "object"
+      },
+      "AccessTokenRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "The token's first characters, to recognise it by.",
+            "title": "Prefix",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "expires_at",
+          "last_used_at"
+        ],
+        "title": "AccessTokenRead",
+        "type": "object"
+      },
       "Body_upload_source_api_v1_projects__project_id__sources_upload_post": {
         "properties": {
           "file": {
@@ -3504,6 +3657,109 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/access-tokens": {
+      "get": {
+        "description": "Tokens that let MCP clients (Claude Code, Cursor, Gemini CLI...) use this workspace.",
+        "operationId": "list_access_tokens_api_v1_access_tokens_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AccessTokenRead"
+                  },
+                  "title": "Response List Access Tokens Api V1 Access Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Access Tokens",
+        "tags": [
+          "access tokens"
+        ]
+      },
+      "post": {
+        "description": "Create a token. Send it as ``Authorization: Bearer <token>`` to ``/mcp``.",
+        "operationId": "create_access_token_api_v1_access_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessTokenCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Access Token",
+        "tags": [
+          "access tokens"
+        ]
+      }
+    },
+    "/api/v1/access-tokens/{token_id}": {
+      "delete": {
+        "description": "Revoke a token. Clients using it are refused from their next request.",
+        "operationId": "revoke_access_token_api_v1_access_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Access Token",
+        "tags": [
+          "access tokens"
+        ]
+      }
+    },
     "/api/v1/chat-messages/{message_id}": {
       "get": {
         "operationId": "get_chat_message_api_v1_chat_messages__message_id__get",
