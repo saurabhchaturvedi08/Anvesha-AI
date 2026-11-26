@@ -4,7 +4,8 @@
 #
 # Services: postgres (data, job queue, agent checkpoints), migrate (one-off schema
 # setup), searxng (web search), api (HTTP + live progress), worker (research agents),
-# web (the web app; it forwards the browser's API calls to the api service).
+# web (the web app; it forwards the browser's API calls to the api service), and
+# mcp-public (optional, `--profile public`: MCP and OAuth sign-in for internet clients).
 #
 # Single-user mode: anyone who can open the web app or API can use it. Both are
 # published on localhost only; don't expose them to a network until multi-user
@@ -27,6 +28,9 @@ x-backend-env: &backend-env
   ANVESHA_OPENROUTER_API_KEY: ${ANVESHA_OPENROUTER_API_KEY:-}
   ANVESHA_GROQ_API_KEY: ${ANVESHA_GROQ_API_KEY:-}
   ANVESHA_MISTRAL_API_KEY: ${ANVESHA_MISTRAL_API_KEY:-}
+  # OAuth sign-in for claude.ai / ChatGPT connectors (see the mcp-public service).
+  ANVESHA_MCP_PUBLIC_URL: ${ANVESHA_MCP_PUBLIC_URL:-}
+  ANVESHA_MCP_APPROVAL_SECRET: ${ANVESHA_MCP_APPROVAL_SECRET:-}
   # To use Ollama running on your computer, set this in .env to
   # http://host.docker.internal:11434/v1
   ANVESHA_OLLAMA_BASE_URL: ${ANVESHA_OLLAMA_BASE_URL:-}
@@ -132,6 +136,33 @@ services:
         condition: service_started
     # Give in-flight steps time to finish; runs resume from checkpoints after restarts.
     stop_grace_period: 45s
+    restart: unless-stopped
+
+  mcp-public:
+    # Only /mcp, OAuth sign-in and /health: the one service to expose to the internet
+    # (through a tunnel or reverse proxy at ANVESHA_MCP_PUBLIC_URL) so claude.ai and
+    # ChatGPT can reach Anvesha. The REST API and web app stay private.
+    # Start it with: docker compose --profile public up -d
+    profiles: ["public"]
+    build: ./backend
+    command:
+      ["uvicorn", "anvesha.api.app:create_public_app", "--factory",
+       "--host", "0.0.0.0", "--port", "8000", "--proxy-headers",
+       "--forwarded-allow-ips", "*"]
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:${MCP_PUBLIC_PORT:-8001}:8000"
+    volumes:
+      - anvesha-secrets:/var/lib/anvesha
+      - anvesha-files:/var/lib/anvesha-files
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      # The API creates the secret key on first start.
+      api:
+        condition: service_started
+      searxng:
+        condition: service_started
     restart: unless-stopped
 
   web:

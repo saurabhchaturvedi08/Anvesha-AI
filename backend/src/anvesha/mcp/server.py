@@ -19,6 +19,7 @@ from mcp.server.auth.provider import AccessToken as McpAccessToken
 from mcp.server.context import ServerRequestContext
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from pydantic import AnyHttpUrl
 from pydantic_core import to_jsonable_python
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.responses import JSONResponse
@@ -66,9 +67,11 @@ class McpTokenVerifier:
             return None
         return McpAccessToken(
             token=token,
-            client_id=f"anvesha-token:{verified.token_id}",
-            scopes=[],
+            # An OAuth client, or (for a personal token) the token itself.
+            client_id=verified.client_id or f"anvesha-token:{verified.token_id}",
+            scopes=list(verified.scopes),
             expires_at=int(verified.expires_at.timestamp()) if verified.expires_at else None,
+            resource=verified.resource,
             subject=str(verified.principal.user_id),
             claims={
                 "workspace_id": str(verified.principal.workspace_id),
@@ -102,8 +105,15 @@ class AnveshaMCP:
     always uses the app's current services.
     """
 
-    def __init__(self, services: Callable[[], McpServices]) -> None:
+    def __init__(
+        self,
+        services: Callable[[], McpServices],
+        *,
+        resource_metadata_url: AnyHttpUrl | None = None,
+    ) -> None:
         self.services = services
+        # With OAuth on, a 401 names this document so clients can find how to sign in.
+        self.resource_metadata_url = resource_metadata_url
         self._tools: dict[str, McpTool] = {}
         self._manager: StreamableHTTPSessionManager | None = None
         self.server: Server[Any] = Server(
@@ -154,7 +164,9 @@ class AnveshaMCP:
 
     def asgi_app(self) -> ASGIApp:
         """The ``/mcp`` endpoint: bearer authentication in front of the MCP transport."""
-        protected = RequireAuthMiddleware(self._handle_http, required_scopes=[])
+        protected = RequireAuthMiddleware(
+            self._handle_http, required_scopes=[], resource_metadata_url=self.resource_metadata_url
+        )
         return AuthenticationMiddleware(
             AuthContextMiddleware(protected), backend=BearerAuthBackend(McpTokenVerifier(self))
         )

@@ -29,6 +29,10 @@ export type ChatThreadDetail = Schemas["ChatThreadDetail"];
 export type ChatMessage = Schemas["ChatMessageRead"];
 export type ChatCitation = Schemas["ChatCitation"];
 export type ClarifyResponse = Schemas["ClarifyResponse"];
+export type AccessToken = Schemas["AccessTokenRead"];
+export type AccessTokenCreated = Schemas["AccessTokenCreated"];
+export type McpConnection = Schemas["ConnectionRead"];
+export type McpInfo = Schemas["McpInfo"];
 
 export type ApiClient = Client<paths>;
 

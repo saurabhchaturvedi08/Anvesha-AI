@@ -169,6 +169,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Connections
+         * @description Apps approved through OAuth sign-in (claude.ai, ChatGPT...), newest first.
+         */
+        get: operations["list_connections_api_v1_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mcp Info
+         * @description How MCP clients reach this server (shown in the web app's settings).
+         */
+        get: operations["mcp_info_api_v1_connections_mcp_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect
+         * @description Revoke an app's access. It has to be approved again to reconnect.
+         */
+        delete: operations["disconnect_api_v1_connections__client_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/test": {
         parameters: {
             query?: never;
@@ -1124,6 +1184,28 @@ export interface components {
             /** Why */
             why: string;
         };
+        /** ConnectionRead */
+        ConnectionRead: {
+            /** Client Id */
+            client_id: string;
+            /**
+             * Client Name
+             * @description The name the app registered with (unverified).
+             */
+            client_name: string | null;
+            /**
+             * Connected At
+             * Format: date-time
+             */
+            connected_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /**
+             * Redirect Hosts
+             * @description Where the app receives sign-in results.
+             */
+            redirect_hosts: string[];
+        };
         /** CredentialSaved */
         CredentialSaved: {
             /** Api Base */
@@ -1267,6 +1349,21 @@ export interface components {
             provider: string;
             /** Text */
             text: string;
+        };
+        /** McpInfo */
+        McpInfo: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Oauth Enabled
+             * @description Whether claude.ai / ChatGPT style sign-in is on.
+             */
+            oauth_enabled: boolean;
+            /**
+             * Public Url
+             * @description The MCP endpoint internet clients use.
+             */
+            public_url: string | null;
         };
         /** ModelPreferenceRead */
         ModelPreferenceRead: {
@@ -2478,6 +2575,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServerConfig"];
+                };
+            };
+        };
+    };
+    list_connections_api_v1_connections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRead"][];
+                };
+            };
+        };
+    };
+    mcp_info_api_v1_connections_mcp_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpInfo"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_connections__client_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

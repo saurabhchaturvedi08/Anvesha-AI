@@ -30,6 +30,9 @@ export const keys = {
   usage: (days: number) => ["usage", days] as const,
   chats: (projectId: string) => ["chats", projectId] as const,
   chat: (threadId: string) => ["chat", threadId] as const,
+  accessTokens: ["access-tokens"] as const,
+  connections: ["connections"] as const,
+  mcpInfo: ["mcp-info"] as const,
 };
 
 export function useServerConfig() {
@@ -177,6 +180,28 @@ export function useUsage(days: number) {
   return useQuery({
     queryKey: keys.usage(days),
     queryFn: () => unwrap(api.GET("/api/v1/usage", { params: { query: { days } } })),
+  });
+}
+
+export function useAccessTokens() {
+  return useQuery({
+    queryKey: keys.accessTokens,
+    queryFn: () => unwrap(api.GET("/api/v1/access-tokens")),
+  });
+}
+
+export function useConnections() {
+  return useQuery({
+    queryKey: keys.connections,
+    queryFn: () => unwrap(api.GET("/api/v1/connections")),
+  });
+}
+
+export function useMcpInfo() {
+  return useQuery({
+    queryKey: keys.mcpInfo,
+    queryFn: () => unwrap(api.GET("/api/v1/connections/mcp")),
+    staleTime: 10 * 60 * 1000,
   });
 }
 

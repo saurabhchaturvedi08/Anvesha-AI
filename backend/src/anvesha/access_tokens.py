@@ -42,6 +42,10 @@ class VerifiedToken:
     token_id: uuid.UUID
     principal: Principal
     expires_at: datetime | None
+    # Set for tokens issued through OAuth sign-in: the approved client.
+    client_id: str | None = None
+    scopes: tuple[str, ...] = ()
+    resource: str | None = None
 
 
 async def create_access_token(
@@ -74,6 +78,8 @@ async def list_access_tokens(session: AsyncSession, principal: Principal) -> Seq
         .where(
             AccessToken.workspace_id == principal.workspace_id,
             AccessToken.user_id == principal.user_id,
+            # OAuth tokens are managed as connections (see anvesha.mcp.oauth).
+            AccessToken.client_id.is_(None),
         )
         .order_by(AccessToken.created_at.desc(), AccessToken.id)
     )
@@ -88,6 +94,7 @@ async def revoke_access_token(
             AccessToken.id == token_id,
             AccessToken.workspace_id == principal.workspace_id,
             AccessToken.user_id == principal.user_id,
+            AccessToken.client_id.is_(None),
         )
     )
     if result.rowcount == 0:  # type: ignore[attr-defined]
@@ -95,7 +102,9 @@ async def revoke_access_token(
     await session.commit()
 
 
-async def verify_access_token(db: Database, token: str) -> VerifiedToken | None:
+async def verify_access_token(
+    db: Database, token: str, *, track_use: bool = True
+) -> VerifiedToken | None:
     """The token's owner, or None if the token is unknown, revoked or expired."""
     if not token.startswith(TOKEN_PREFIX) or len(token) > 200:
         return None
@@ -106,7 +115,9 @@ async def verify_access_token(db: Database, token: str) -> VerifiedToken | None:
         )
         if row is None or (row.expires_at is not None and row.expires_at <= now):
             return None
-        if row.last_used_at is None or now - row.last_used_at >= LAST_USED_RESOLUTION:
+        if track_use and (
+            row.last_used_at is None or now - row.last_used_at >= LAST_USED_RESOLUTION
+        ):
             await session.execute(
                 update(AccessToken).where(AccessToken.id == row.id).values(last_used_at=now)
             )
@@ -115,7 +126,32 @@ async def verify_access_token(db: Database, token: str) -> VerifiedToken | None:
             token_id=row.id,
             principal=Principal(user_id=row.user_id, workspace_id=row.workspace_id),
             expires_at=row.expires_at,
+            client_id=row.client_id,
+            scopes=tuple(row.scopes or ()),
+            resource=row.resource,
         )
+
+
+async def prune_expired_credentials(db: Database) -> None:
+    """Delete OAuth codes and tokens past their expiry (run hourly by the worker).
+
+    Expired tokens already fail verification; this only keeps the tables small. Personal
+    tokens stay listed after they expire, so the user sees why a client stopped working.
+    """
+    from anvesha.db.models import OAuthAuthorizationCode, OAuthRefreshToken
+
+    now = datetime.now(UTC)
+    async with db.session() as session:
+        await session.execute(
+            delete(OAuthAuthorizationCode).where(OAuthAuthorizationCode.expires_at <= now)
+        )
+        await session.execute(delete(OAuthRefreshToken).where(OAuthRefreshToken.expires_at <= now))
+        await session.execute(
+            delete(AccessToken).where(
+                AccessToken.client_id.is_not(None), AccessToken.expires_at <= now
+            )
+        )
+        await session.commit()
 
 
 # --- Command line ---------------------------------------------------------------------

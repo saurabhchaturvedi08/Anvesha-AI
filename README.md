@@ -17,7 +17,7 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 2: Research tools.** Web search (bundled SearXNG, free; or Tavily, Brave, Exa), scholarly search (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed), safe page and PDF reading, uploads, hybrid keyword and semantic search, deterministic quote verification.
 - [x] **Phase 3: Research agents.** A lead researcher plans (you approve or edit the plan), researcher agents investigate in parallel, a verifier checks every quote in code and with a model, and a writer produces a cited report. Runs execute in a background worker, survive restarts, stream live progress, and stop at a spending limit with a partial report.
 - [x] **Phase 4: Web app.** A guided new-research flow (with optional question refinement), live agent activity, plan review and editing, reports with hoverable citations that show the quoted evidence, a sources and evidence explorer, a Research Assistant chat that answers from the project's evidence, and settings for keys, models, search and usage.
-- [ ] **Phase 5: MCP server** (in progress). Done: a remote MCP endpoint for Claude Code, Cursor, Gemini CLI and other clients that accept a token, with research, report and evidence tools plus the agents' own search, reading and quote-checking tools. Next: OAuth sign-in for claude.ai and ChatGPT connectors.
+- [x] **Phase 5: MCP server.** Use Anvesha from Claude, ChatGPT, Gemini CLI, Cursor and other MCP clients: start research, read cited reports, search verified evidence, or research with the agents' own search, reading and quote-checking tools. Clients connect with an access token or, for claude.ai and ChatGPT connectors, OAuth sign-in through a public endpoint that exposes only MCP.
 - [ ] Phases 6–8: Evals, hosted SaaS, desktop
 
 The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
@@ -69,7 +69,7 @@ Everything the web app does goes through the REST API, documented at <http://loc
 
 Anvesha is also an [MCP](https://modelcontextprotocol.io) server at `http://localhost:8000/mcp` (Streamable HTTP). Your AI assistant can hand research to Anvesha's agents, read the cited reports, and search the verified evidence. It can also research by itself with Anvesha's search, reading and quote-checking tools, so every quote it relies on is checked in code.
 
-1. **Create an access token.** It is shown once, so copy it:
+1. **Create an access token** in **Settings → Use from AI assistants**, or from the command line. It is shown once, so copy it:
 
    ```bash
    docker compose exec api python -m anvesha.access_tokens create --name "Claude Code"
@@ -95,7 +95,31 @@ The tools:
 | `list_projects`, `create_project` | Find or start a project. |
 | `web_search`, `scholar_search`, `fetch_page`, `read_source`, `search_sources`, `verify_quote`, `list_sources` | The research agents' own tools, acting on one project (`project_id`). |
 
-With `start_research`, Anvesha's agents do the reasoning on your configured models. With the raw tools, your assistant does it, so your existing AI subscription pays for it. claude.ai and ChatGPT connectors need OAuth sign-in, which is the next step of Phase 5. Set `ANVESHA_MCP_ENABLED=false` to turn the endpoint off.
+With `start_research`, Anvesha's agents do the reasoning on your configured models. With the raw tools, your assistant does it, so your existing AI subscription pays for it. Set `ANVESHA_MCP_ENABLED=false` to turn the endpoint off.
+
+#### Connect claude.ai, ChatGPT and other connector apps
+
+These apps call Anvesha from their own servers, so Anvesha must be reachable from the internet, and they sign in with OAuth instead of a token. Anvesha includes a separate **public service** for this that serves only `/mcp`, sign-in and a health check. The REST API and web app stay private: in single-user mode they have no sign-in, so never expose them.
+
+1. **Choose the public address** and a long random approval secret, and add them to `.env`:
+
+   ```bash
+   ANVESHA_MCP_PUBLIC_URL=https://anvesha.example.org   # https, no trailing path
+   ANVESHA_MCP_APPROVAL_SECRET=<a long random value>     # e.g. openssl rand -base64 24
+   ```
+
+2. **Start the public service** (it listens on `127.0.0.1:8001`):
+
+   ```bash
+   docker compose --profile public up -d
+   ```
+
+3. **Point the public address at it**, only at port 8001, with a tunnel or reverse proxy that terminates HTTPS. For example `cloudflared tunnel --url http://localhost:8001`, or Caddy with `reverse_proxy localhost:8001`.
+
+4. **Add the connector** in the app, with the server URL `https://anvesha.example.org/mcp`. For example: claude.ai **Settings → Connectors → Add custom connector**, or ChatGPT developer-mode connectors (check OpenAI's docs for which plans allow custom connectors). The app registers itself and opens Anvesha's approval page. Check the app name and callback address it shows, enter the approval secret, and approve.
+
+Approved apps get hour-long access tokens that they renew automatically. They're listed under **Settings → Use from AI assistants → Connected apps**, where you can disconnect them. Ten wrong approval secrets pause approval for 15 minutes.
+
 
 ### Search and gather sources
 

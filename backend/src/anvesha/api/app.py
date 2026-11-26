@@ -11,6 +11,7 @@ from anvesha import __version__
 from anvesha.api.routers import (
     access_tokens,
     chat,
+    connections,
     health,
     meta,
     model_preferences,
@@ -27,14 +28,37 @@ from anvesha.config import Settings, get_settings
 from anvesha.errors import AppError
 from anvesha.events.broker import RunEventBroker
 from anvesha.mcp import MCP_PATH, AnveshaMCP, McpServices
+from anvesha.mcp.oauth import AnveshaOAuthProvider, OAuthDeps, oauth_routes, resource_metadata_url
 from anvesha.services import open_services
 from anvesha.tenancy import ensure_local_principal
 from anvesha.worker.queue import JobQueue
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_public_app(settings: Settings | None = None) -> FastAPI:
+    """Only what MCP clients on the internet need: ``/mcp``, OAuth sign-in, and health.
+
+    Put this one (not ``create_app``) behind a tunnel or reverse proxy at
+    ``ANVESHA_MCP_PUBLIC_URL``. The REST API stays private: in single-user mode it has no
+    sign-in. Run with ``uvicorn anvesha.api.app:create_public_app --factory``.
+    """
+    return create_app(settings, public=True)
+
+
+def _check_mcp_settings(settings: Settings, *, public: bool) -> None:
+    if public and not settings.mcp_enabled:
+        raise RuntimeError("The public app serves MCP only; set ANVESHA_MCP_ENABLED=true.")
+    if settings.mcp_oauth_enabled and settings.mcp_approval_secret is None:
+        raise RuntimeError(
+            "ANVESHA_MCP_PUBLIC_URL is set, so OAuth sign-in is on, but "
+            "ANVESHA_MCP_APPROVAL_SECRET is not. Set it to a long random value: in "
+            "single-user mode it is what stops strangers approving their own connections."
+        )
+
+
+def create_app(settings: Settings | None = None, *, public: bool = False) -> FastAPI:
     """Build the API. Run with ``uvicorn anvesha.api.app:create_app --factory``."""
     settings = settings or get_settings()
+    _check_mcp_settings(settings, public=public)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -48,6 +72,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.storage = services.storage
             app.state.sources = services.sources
             app.state.tools = services.tools
+            if settings.mcp_oauth_enabled and services.vault is None:
+                raise RuntimeError(
+                    "OAuth sign-in stores client secrets encrypted, so it needs a master key "
+                    "(ANVESHA_SECRET_KEY or ANVESHA_SECRET_KEY_FILE)."
+                )
             async with services.db.session() as session:
                 try:
                     app.state.local_principal = await ensure_local_principal(
@@ -77,7 +106,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     await chat_replies.aclose()
                     await broker.stop()
 
-    app = FastAPI(title="Anvesha API", version=__version__, lifespan=lifespan)
+    # The public app has no REST API, so nothing to document.
+    app = FastAPI(
+        title="Anvesha API",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None if public else "/docs",
+        redoc_url=None if public else "/redoc",
+        openapi_url=None if public else "/openapi.json",
+    )
 
     def mcp_services() -> McpServices:
         state = app.state
@@ -92,7 +129,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             queue=state.queue,
         )
 
-    mcp_server = AnveshaMCP(mcp_services) if settings.mcp_enabled else None
+    def oauth_deps() -> OAuthDeps:
+        state = app.state
+        return OAuthDeps(
+            settings=state.settings,
+            db=state.db,
+            vault=state.vault,
+            principal=state.local_principal,
+        )
+
+    oauth = AnveshaOAuthProvider(oauth_deps) if settings.mcp_oauth_enabled else None
+    mcp_server = (
+        AnveshaMCP(
+            mcp_services,
+            resource_metadata_url=resource_metadata_url(settings) if oauth else None,
+        )
+        if settings.mcp_enabled
+        else None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -107,17 +161,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     app.include_router(health.router)
-    app.include_router(meta.router)
-    app.include_router(projects.router)
-    app.include_router(providers.router)
-    app.include_router(model_preferences.router)
-    app.include_router(usage.router)
-    app.include_router(search.router)
-    app.include_router(sources.router)
-    app.include_router(tools.router)
-    app.include_router(runs.router)
-    app.include_router(chat.router)
-    app.include_router(access_tokens.router)
+    if not public:
+        for router in (
+            meta.router,
+            projects.router,
+            providers.router,
+            model_preferences.router,
+            usage.router,
+            search.router,
+            sources.router,
+            tools.router,
+            runs.router,
+            chat.router,
+            access_tokens.router,
+            connections.router,
+        ):
+            app.include_router(router)
+    if oauth is not None:
+        app.router.routes.extend(oauth_routes(oauth, settings))
     if mcp_server is not None:
         # Any HTTP method: the MCP transport answers POST, GET and DELETE itself.
         app.router.routes.append(Route(MCP_PATH, endpoint=mcp_server.asgi_app()))

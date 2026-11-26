@@ -18,6 +18,7 @@ from procrastinate.connector import BaseConnector
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy import func, select
 
+from anvesha.access_tokens import prune_expired_credentials
 from anvesha.config import Settings
 from anvesha.db.models import Run
 from anvesha.db.session import Database
@@ -27,6 +28,7 @@ RESEARCH_QUEUE = "research"
 MAINTENANCE_QUEUE = "maintenance"
 RUN_TASK = "anvesha.run_research"
 RECOVER_TASK = "anvesha.recover_runs"
+PRUNE_CREDENTIALS_TASK = "anvesha.prune_credentials"
 # A worker that hasn't sent a heartbeat for this long is considered dead.
 STALLED_WORKER_SECONDS = 120
 # A run whose heartbeat is older than this (or queued that long without starting) is
@@ -74,6 +76,17 @@ class JobQueue:
         async def recover_runs(context: JobContext, timestamp: int) -> None:
             db: Database = context.additional_context["db"]
             await self.recover(db)
+
+        @self.app.periodic(cron="17 * * * *", periodic_id="prune-credentials")
+        @self.app.task(
+            name=PRUNE_CREDENTIALS_TASK,
+            queue=MAINTENANCE_QUEUE,
+            pass_context=True,
+            queueing_lock=PRUNE_CREDENTIALS_TASK,
+        )
+        async def prune_credentials(context: JobContext, timestamp: int) -> None:
+            db: Database = context.additional_context["db"]
+            await prune_expired_credentials(db)
 
         self._run_task = run_research
 

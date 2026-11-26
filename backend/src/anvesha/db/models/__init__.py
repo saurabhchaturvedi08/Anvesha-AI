@@ -1,6 +1,11 @@
 """All ORM models. Importing this package registers every table on ``Base.metadata``."""
 
-from anvesha.db.models.access import AccessToken
+from anvesha.db.models.access import (
+    AccessToken,
+    OAuthAuthorizationCode,
+    OAuthClient,
+    OAuthRefreshToken,
+)
 from anvesha.db.models.chat import ChatMessage, ChatThread
 from anvesha.db.models.llm import ModelPreference, ProviderCredential, UsageEvent
 from anvesha.db.models.research import Project
@@ -21,6 +26,9 @@ __all__ = [
     "ChatThread",
     "Finding",
     "ModelPreference",
+    "OAuthAuthorizationCode",
+    "OAuthClient",
+    "OAuthRefreshToken",
     "Project",
     "ProviderCredential",
     "Report",

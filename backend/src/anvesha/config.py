@@ -2,6 +2,7 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -126,6 +127,16 @@ class Settings(BaseSettings):
     # /mcp. Clients need an access token (Settings → Access tokens, or
     # `python -m anvesha.access_tokens create`).
     mcp_enabled: bool = True
+    # The address MCP clients on the internet reach Anvesha at, e.g.
+    # "https://anvesha.example.org" (the public app, `create_public_app`, behind a tunnel or
+    # reverse proxy). Setting it turns on OAuth sign-in, which claude.ai and ChatGPT
+    # connectors use. Must be https unless it is localhost.
+    mcp_public_url: str | None = None
+    # In single-user mode there are no accounts, so approving a new connection asks for
+    # this secret instead. Required when mcp_public_url is set. At least 12 characters.
+    mcp_approval_secret: SecretStr | None = Field(default=None, min_length=12)
+    mcp_oauth_access_token_minutes: int = Field(default=60, ge=5, le=24 * 60)
+    mcp_oauth_refresh_token_days: int = Field(default=30, ge=1, le=365)
 
     # --- Project chat (Research Assistant) ------------------------------------------------
     # Spending limit for writing one chat reply. None: no limit.
@@ -162,6 +173,8 @@ class Settings(BaseSettings):
         "run_max_cost_ceiling_usd",
         "run_default_max_tokens",
         "chat_max_cost_usd",
+        "mcp_public_url",
+        "mcp_approval_secret",
         mode="before",
     )
     @classmethod
@@ -194,7 +207,32 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    @field_validator("mcp_public_url")
+    @classmethod
+    def _plain_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip().rstrip("/")
+        url = make_url_parts(value)
+        if url is None:
+            raise ValueError("must be an http(s) URL like https://anvesha.example.org")
+        return value
+
+    @property
+    def mcp_oauth_enabled(self) -> bool:
+        return self.mcp_enabled and self.mcp_public_url is not None
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def make_url_parts(value: str) -> tuple[str, str] | None:
+    """(scheme, host) of an absolute http(s) URL without query or fragment, else None."""
+    parsed = urlsplit(value)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return None
+    if parsed.query or parsed.fragment:
+        return None
+    return parsed.scheme, parsed.hostname

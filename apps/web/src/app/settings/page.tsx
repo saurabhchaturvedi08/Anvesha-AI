@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { McpAccessCard } from "@/components/settings/mcp";
 import { ModelRolesCard } from "@/components/settings/models";
 import { ModelProvidersCard, SearchProvidersCard } from "@/components/settings/providers";
 import { UsageCard } from "@/components/settings/usage";
@@ -12,12 +13,14 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Connect models and search, choose a model for each agent, and see what research costs.
+          Connect models and search, choose a model for each agent, use Anvesha from AI assistants,
+          and see what research costs.
         </p>
       </div>
       <ModelProvidersCard />
       <ModelRolesCard />
       <SearchProvidersCard />
+      <McpAccessCard />
       <UsageCard />
     </div>
   );

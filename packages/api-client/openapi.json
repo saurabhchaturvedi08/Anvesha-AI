@@ -644,6 +644,60 @@
         "title": "ClarifyingQuestionRead",
         "type": "object"
       },
+      "ConnectionRead": {
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name the app registered with (unverified).",
+            "title": "Client Name"
+          },
+          "connected_at": {
+            "format": "date-time",
+            "title": "Connected At",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "redirect_hosts": {
+            "description": "Where the app receives sign-in results.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Redirect Hosts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "redirect_hosts",
+          "connected_at",
+          "last_used_at"
+        ],
+        "title": "ConnectionRead",
+        "type": "object"
+      },
       "CredentialSaved": {
         "properties": {
           "api_base": {
@@ -1082,6 +1136,38 @@
           "cost_usd"
         ],
         "title": "LLMTestResponse",
+        "type": "object"
+      },
+      "McpInfo": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "oauth_enabled": {
+            "description": "Whether claude.ai / ChatGPT style sign-in is on.",
+            "title": "Oauth Enabled",
+            "type": "boolean"
+          },
+          "public_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The MCP endpoint internet clients use.",
+            "title": "Public Url"
+          }
+        },
+        "required": [
+          "enabled",
+          "oauth_enabled",
+          "public_url"
+        ],
+        "title": "McpInfo",
         "type": "object"
       },
       "ModelPreferenceRead": {
@@ -4085,6 +4171,91 @@
         "summary": "Server Config",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/api/v1/connections": {
+      "get": {
+        "description": "Apps approved through OAuth sign-in (claude.ai, ChatGPT...), newest first.",
+        "operationId": "list_connections_api_v1_connections_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionRead"
+                  },
+                  "title": "Response List Connections Api V1 Connections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Connections",
+        "tags": [
+          "access tokens"
+        ]
+      }
+    },
+    "/api/v1/connections/mcp": {
+      "get": {
+        "description": "How MCP clients reach this server (shown in the web app's settings).",
+        "operationId": "mcp_info_api_v1_connections_mcp_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Mcp Info",
+        "tags": [
+          "access tokens"
+        ]
+      }
+    },
+    "/api/v1/connections/{client_id}": {
+      "delete": {
+        "description": "Revoke an app's access. It has to be approved again to reconnect.",
+        "operationId": "disconnect_api_v1_connections__client_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Client Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "access tokens"
         ]
       }
     },
