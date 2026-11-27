@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import make_url
 
@@ -26,10 +26,31 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://anvesha:anvesha@localhost:5432/anvesha"
     # Comma-separated browser origins allowed to call the API (the web app).
     cors_origins: str = "http://localhost:3000"
-    # "local" is single-user mode for self-hosting: every request acts as one built-in
-    # user and workspace. Multi-user JWT auth arrives with the hosted SaaS phase.
-    auth_mode: Literal["local"] = "local"
+    # "local": single-user mode for self-hosting. Every request acts as one built-in user
+    # and workspace, and there is no sign-in.
+    # "jwt": multi-user. People sign in to the web app (Better Auth), which calls the API
+    # with short-lived JWTs that the API verifies against the web app's public keys.
+    auth_mode: Literal["local", "jwt"] = "local"
     local_user_email: str = "local@anvesha.invalid"
+    # --- jwt mode ---
+    # Where the web app publishes its signing keys, e.g. http://web:3000/api/auth/jwks.
+    auth_jwks_url: str | None = None
+    # Expected "iss" and "aud" of the JWTs: the web app's public URL, and the API.
+    auth_issuer: str | None = None
+    auth_audience: str = "anvesha-api"
+    # The web app's public address, e.g. https://app.anvesha.example. Used for invitation
+    # links and, in jwt mode, for the page where MCP connections are approved.
+    web_url: str = "http://localhost:3000"
+
+    # --- Rate limits ---------------------------------------------------------------------
+    # Per-workspace and per-user request limits on expensive operations. None: on in jwt
+    # mode, off in single-user mode. 0 disables an individual limit.
+    rate_limits_enabled: bool | None = None
+    rate_limit_runs_per_hour: int = Field(default=30, ge=0)  # per workspace
+    rate_limit_chat_per_hour: int = Field(default=120, ge=0)  # per user
+    rate_limit_clarify_per_hour: int = Field(default=60, ge=0)  # per user
+    # Searches, page fetches, uploads and tool calls (REST and MCP), per user.
+    rate_limit_tools_per_10_minutes: int = Field(default=300, ge=0)
 
     # --- Secrets ---------------------------------------------------------------------
     # Master key that encrypts stored provider API keys (32 bytes, base64url). If unset,
@@ -166,6 +187,9 @@ class Settings(BaseSettings):
     trace_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
 
     @field_validator(
+        "auth_jwks_url",
+        "auth_issuer",
+        "rate_limits_enabled",
         "langfuse_public_key",
         "langfuse_secret_key",
         "otlp_traces_endpoint",
@@ -238,6 +262,29 @@ class Settings(BaseSettings):
         if url is None:
             raise ValueError("must be an http(s) URL like https://anvesha.example.org")
         return value
+
+    @field_validator("web_url")
+    @classmethod
+    def _web_url(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        if make_url_parts(value) is None:
+            raise ValueError("must be an http(s) URL like https://app.anvesha.example")
+        return value
+
+    @model_validator(mode="after")
+    def _jwt_settings(self) -> "Settings":
+        if self.auth_mode == "jwt" and not (self.auth_jwks_url and self.auth_issuer):
+            raise ValueError(
+                "ANVESHA_AUTH_MODE=jwt needs ANVESHA_AUTH_JWKS_URL and ANVESHA_AUTH_ISSUER "
+                "(the web app's JWKS endpoint and public URL)."
+            )
+        return self
+
+    @property
+    def rate_limits_on(self) -> bool:
+        if self.rate_limits_enabled is None:
+            return self.auth_mode == "jwt"
+        return self.rate_limits_enabled
 
     @property
     def langfuse_enabled(self) -> bool:

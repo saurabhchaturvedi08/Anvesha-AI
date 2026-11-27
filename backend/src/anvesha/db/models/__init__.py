@@ -18,7 +18,13 @@ from anvesha.db.models.runs import (
     SubQuestion,
 )
 from anvesha.db.models.sources import Source, SourceChunk
-from anvesha.db.models.tenancy import User, Workspace, WorkspaceMember
+from anvesha.db.models.tenancy import (
+    RateLimitCounter,
+    User,
+    Workspace,
+    WorkspaceInvitation,
+    WorkspaceMember,
+)
 
 __all__ = [
     "AccessToken",
@@ -30,6 +36,7 @@ __all__ = [
     "OAuthClient",
     "OAuthRefreshToken",
     "Project",
+    "RateLimitCounter",
     "ProviderCredential",
     "Report",
     "Run",
@@ -41,5 +48,6 @@ __all__ = [
     "UsageEvent",
     "User",
     "Workspace",
+    "WorkspaceInvitation",
     "WorkspaceMember",
 ]

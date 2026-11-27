@@ -34,6 +34,26 @@ class InvalidInputError(AppError):
     http_status = 422
 
 
+class UnauthenticatedError(AppError):
+    code = "unauthenticated"
+    http_status = 401
+
+
+class ForbiddenError(AppError):
+    code = "forbidden"
+    http_status = 403
+
+
+class RateLimitedError(AppError):
+    code = "rate_limited"
+    http_status = 429
+    retryable = True
+
+    def __init__(self, message: str, *, retry_after: int) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class NotConfiguredError(AppError):
     code = "not_configured"
     http_status = 409
