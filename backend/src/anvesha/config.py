@@ -148,7 +148,28 @@ class Settings(BaseSettings):
     # Replies one API process writes at the same time; more wait their turn.
     chat_max_concurrent_replies: int = Field(default=8, ge=1, le=128)
 
+    # --- Tracing (Langfuse / OpenTelemetry) ---------------------------------------------
+    # Send traces of runs, agent steps, model calls (tokens, cost) and tool calls to
+    # Langfuse: Langfuse Cloud, or your own (set langfuse_host). Both keys turn it on.
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_host: str = "https://cloud.langfuse.com"
+    # Any other OTLP/HTTP trace endpoint, e.g. http://localhost:4318/v1/traces, with
+    # optional headers as "key=value,key2=value2". Works alongside Langfuse.
+    otlp_traces_endpoint: str | None = None
+    otlp_headers: SecretStr | None = None
+    # Attach prompts, model outputs and tool arguments to spans. Most useful for
+    # debugging prompts, but they include users' questions and fetched web content, so
+    # only turn it on when the tracing backend may hold that data.
+    trace_content: bool = False
+    # Share of runs (traces) to record, from 0 to 1.
+    trace_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
+
     @field_validator(
+        "langfuse_public_key",
+        "langfuse_secret_key",
+        "otlp_traces_endpoint",
+        "otlp_headers",
         "secret_key",
         "previous_secret_keys",
         "openai_api_key",
@@ -217,6 +238,14 @@ class Settings(BaseSettings):
         if url is None:
             raise ValueError("must be an http(s) URL like https://anvesha.example.org")
         return value
+
+    @property
+    def langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
+
+    @property
+    def tracing_configured(self) -> bool:
+        return self.langfuse_enabled or bool(self.otlp_traces_endpoint)
 
     @property
     def mcp_oauth_enabled(self) -> bool:

@@ -9,12 +9,15 @@ and why research stopped. The evidence itself lives in Postgres (sub_questions,
 findings), so checkpoints stay small and every step can be retried safely.
 """
 
+import functools
 import operator
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Annotated, Any, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
@@ -22,7 +25,8 @@ from langgraph.types import Send, interrupt
 from pydantic import ValidationError
 from sqlalchemy import delete, update
 
-from anvesha.agents.context import RunContext
+from anvesha import tracing
+from anvesha.agents.context import RunCancelled, RunContext
 from anvesha.agents.evidence import load_findings, load_sub_questions
 from anvesha.agents.lead import PlannedQuestion, make_plan, review_progress
 from anvesha.agents.researcher import Researcher
@@ -225,16 +229,45 @@ async def write(state: ResearchState, runtime: Runtime[RunContext]) -> dict[str,
     return {"report_id": str(report_id), "report_status": status, "stop_reason": stop_reason}
 
 
+def traced_node[F: Callable[..., Awaitable[dict[str, Any]]]](
+    fn: F, kind: tracing.ObservationType
+) -> F:
+    """Run a graph node inside a span (named after the researcher for research steps).
+
+    A paused graph (plan approval) and a cancelled run are control flow, not failures.
+    """
+
+    @functools.wraps(fn)
+    async def node(state: Any, runtime: Runtime[RunContext]) -> dict[str, Any]:
+        attributes: dict[str, Any] = {}
+        name = fn.__name__
+        if isinstance(state, dict) and "label" in state:  # a researcher's task
+            name = str(state["label"])
+            attributes["anvesha.sub_question"] = clip(state["sub_question"]["question"], 500)
+        else:
+            attributes["anvesha.round"] = state.get("round") if isinstance(state, dict) else None
+        with tracing.span(
+            name, kind=kind, attributes=attributes, quiet=(GraphBubbleUp, RunCancelled)
+        ) as span:
+            result = await fn(state, runtime)
+            tracing.set_attributes(
+                span, {"anvesha.budget.spent_usd": runtime.context.budget.spent_usd}
+            )
+            return result
+
+    return node  # type: ignore[return-value]  # same signature, via functools.wraps
+
+
 def build_research_graph(
     checkpointer: BaseCheckpointSaver[Any] | None,
 ) -> CompiledStateGraph[ResearchState, RunContext, ResearchState, ResearchState]:
     graph = StateGraph(ResearchState, context_schema=RunContext)
-    graph.add_node("plan", plan)
-    graph.add_node("review_plan", review_plan)
-    graph.add_node("research", research, input_schema=ResearchTask)
-    graph.add_node("verify", verify)
-    graph.add_node("reflect", reflect)
-    graph.add_node("write", write)
+    graph.add_node("plan", traced_node(plan, "agent"))
+    graph.add_node("review_plan", traced_node(review_plan, "span"))
+    graph.add_node("research", traced_node(research, "agent"), input_schema=ResearchTask)
+    graph.add_node("verify", traced_node(verify, "evaluator"))
+    graph.add_node("reflect", traced_node(reflect, "agent"))
+    graph.add_node("write", traced_node(write, "agent"))
     graph.add_edge(START, "plan")
     graph.add_edge("plan", "review_plan")
     graph.add_conditional_edges("review_plan", dispatch, ["research", "write"])

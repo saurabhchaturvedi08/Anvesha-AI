@@ -21,6 +21,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from anvesha import tracing
 from anvesha.agents.assistant import Assistant, AssistantReply, Progress, Turn
 from anvesha.agents.context import WorkspaceCompleter
 from anvesha.agents.evidence import load_run_findings
@@ -223,7 +224,20 @@ class ChatService:
         try:
             async with self._semaphore:
                 async with asyncio.timeout(env.settings.chat_reply_timeout_seconds):
-                    reply = await self._generate(env, job, progress)
+                    # One trace per reply; a thread's replies share a session.
+                    with tracing.span(
+                        "chat reply",
+                        kind="agent",
+                        attributes=tracing.trace_attributes(
+                            name="chat reply",
+                            session_id=f"chat:{job.thread_id}",
+                            user_id=str(job.workspace_id),
+                            metadata={"project_id": str(job.project_id)},
+                        ),
+                        input={"question": job.question},
+                    ) as span:
+                        reply = await self._generate(env, job, progress)
+                        tracing.set_output(span, reply.content)
         except TimeoutError:
             await self._fail(
                 env.db,

@@ -18,7 +18,8 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 3: Research agents.** A lead researcher plans (you approve or edit the plan), researcher agents investigate in parallel, a verifier checks every quote in code and with a model, and a writer produces a cited report. Runs execute in a background worker, survive restarts, stream live progress, and stop at a spending limit with a partial report.
 - [x] **Phase 4: Web app.** A guided new-research flow (with optional question refinement), live agent activity, plan review and editing, reports with hoverable citations that show the quoted evidence, a sources and evidence explorer, a Research Assistant chat that answers from the project's evidence, and settings for keys, models, search and usage.
 - [x] **Phase 5: MCP server.** Use Anvesha from Claude, ChatGPT, Gemini CLI, Cursor and other MCP clients: start research, read cited reports, search verified evidence, or research with the agents' own search, reading and quote-checking tools. Clients connect with an access token or, for claude.ai and ChatGPT connectors, OAuth sign-in through a public endpoint that exposes only MCP.
-- [ ] Phases 6–8: Evals, hosted SaaS, desktop
+- [x] **Phase 6: Quality.** Langfuse (or any OpenTelemetry backend) traces every run: agent steps, model calls with tokens and cost, and tool calls. A golden question set is scored on citation precision, cited sentences, fact recall and cost, with a gate in CI. See [evals/](evals/README.md).
+- [ ] Phases 7–8: Hosted SaaS, desktop
 
 The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
 

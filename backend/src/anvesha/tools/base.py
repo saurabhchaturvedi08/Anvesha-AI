@@ -13,6 +13,7 @@ from typing import Any
 import httpx2
 from pydantic import BaseModel, ValidationError
 
+from anvesha import tracing
 from anvesha.config import Settings
 from anvesha.crypto import SecretBox
 from anvesha.db.session import Database
@@ -129,6 +130,27 @@ class ToolRegistry:
         return [tool.spec() for tool in selected]
 
     async def invoke(self, name: str, arguments: dict[str, Any], ctx: ToolContext) -> ToolResult:
+        with tracing.span(
+            name,
+            kind="tool",
+            attributes={
+                "anvesha.project_id": str(ctx.project_id),
+                "anvesha.added_by": ctx.added_by,
+            },
+            input=arguments,
+        ) as span:
+            result = await self._invoke(name, arguments, ctx)
+            tracing.set_attributes(
+                span,
+                {"anvesha.tool.ok": not result.is_error, "anvesha.tool.error": result.error_code},
+            )
+            if result.is_error:
+                # Failed fetches and empty searches are normal; the agent adapts.
+                tracing.set_level(span, "WARNING", result.error_code or "error")
+            tracing.set_output(span, result.content)
+            return result
+
+    async def _invoke(self, name: str, arguments: dict[str, Any], ctx: ToolContext) -> ToolResult:
         tool = self._tools.get(name)
         if tool is None:
             return ToolResult.error(

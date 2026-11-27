@@ -20,6 +20,7 @@ from psycopg import OperationalError as PsycopgOperationalError
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import DBAPIError, OperationalError
 
+from anvesha import tracing
 from anvesha.agents.context import PROFILES, RESEARCH_BUDGET_FRACTION, RunCancelled, RunContext
 from anvesha.db.models import Run, UsageEvent
 from anvesha.errors import AppError
@@ -56,6 +57,25 @@ class RunExecutor:
         run = await self._claim(run_id)
         if run is None:
             return
+        # One trace per execution; the run's executions (first pass, resume after plan
+        # approval, retries) share a session.
+        with tracing.span(
+            "research run",
+            kind="agent",
+            attributes=tracing.trace_attributes(
+                name="research run",
+                session_id=str(run.id),
+                user_id=str(run.workspace_id),
+                tags=[f"depth:{run.depth}", "autopilot" if run.autopilot else "approval"],
+                metadata={"project_id": str(run.project_id), "attempt": run.attempts},
+            )
+            | {"anvesha.run_id": str(run.id), "anvesha.depth": run.depth},
+            input={"question": run.question, "depth": run.depth},
+            quiet=(RetryRun,),
+        ):
+            await self._execute_claimed(run, final_attempt)
+
+    async def _execute_claimed(self, run: Run, final_attempt: bool) -> None:
         settings = self.services.settings
         config: RunnableConfig = {
             "configurable": {"thread_id": str(run.id)},
@@ -241,6 +261,12 @@ class RunExecutor:
                 session, run_id=run.id, workspace_id=run.workspace_id, type=event, data=data
             )
             await session.commit()
+        # Called from inside the run's trace: record how this execution ended.
+        span = tracing.current_span()
+        tracing.set_attributes(span, {"anvesha.run.status": status, "anvesha.run.event": event})
+        if status == "failed":
+            tracing.set_level(span, "ERROR", str(data.get("message") or data.get("code")))
+        tracing.set_output(span, {"status": status, **data})
 
     async def _finish(
         self, run_id: uuid.UUID, status: str, event: str, data: dict[str, Any]

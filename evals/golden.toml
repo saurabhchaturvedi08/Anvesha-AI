@@ -1,0 +1,138 @@
+# Anvesha's golden questions. Run with:
+#   cd backend && uv run python -m anvesha.evals run ../evals/golden.toml --model openai:gpt-4o-mini
+#
+# Each case seeds its project with a stable reference page, so results don't depend on
+# which search provider is configured; agents may still search and read more. Facts are
+# things a correct report states. They are matched as phrases (every group needs one of
+# its phrases), so keep them to names, numbers and terms rather than whole sentences.
+#
+# Questions are about settled facts, so the expected answers don't drift over time.
+
+name = "golden"
+description = "Settled questions across science, space, policy, economics and medicine."
+
+[defaults]
+depth = "quick"
+# Each run's spending limit. Quick runs on a small model cost a few cents.
+max_cost_usd = "0.50"
+
+[gate]
+# Citations are rendered and checked in code, so anything below ~1.0 means a bug or a
+# writer inventing finding numbers. Keep this strict.
+min_citation_precision = 0.95
+# Share of claim sentences that cite evidence (the writer is told to cite every one).
+min_cited_sentence_rate = 0.6
+# Share of expected facts the reports state. Depends on the model; calibrate it against
+# a baseline from your chosen eval model before tightening.
+min_fact_recall = 0.6
+max_mean_cost_usd = "0.30"
+max_case_cost_usd = "0.60"
+max_failed_cases = 0
+# With --baseline: how far quality may drop, and how much the mean cost may grow.
+max_regression = 0.05
+max_cost_increase = 0.5
+
+[[case]]
+id = "crispr"
+question = "Who developed CRISPR-Cas9 genome editing, how does it cut DNA, and what recognition did its inventors receive?"
+urls = ["https://en.wikipedia.org/wiki/CRISPR_gene_editing"]
+
+[[case.facts]]
+claim = "Jennifer Doudna and Emmanuelle Charpentier developed it"
+match = [["doudna"], ["charpentier"]]
+
+[[case.facts]]
+claim = "They received the 2020 Nobel Prize in Chemistry"
+match = [["nobel"], ["2020"]]
+
+[[case.facts]]
+claim = "A guide RNA directs Cas9 to the target sequence"
+match = [["guide rna", "grna", "sgrna", "guide sequence", "single guide"]]
+
+[[case.facts]]
+claim = "Cas9 makes a double-strand break in the DNA"
+match = [["double-strand", "double strand", "double-stranded break", "cuts both strands"]]
+
+[[case]]
+id = "jwst"
+question = "When and how was the James Webb Space Telescope launched, where does it operate, and what kind of light does it observe?"
+urls = ["https://en.wikipedia.org/wiki/James_Webb_Space_Telescope"]
+
+[[case.facts]]
+claim = "It launched on 25 December 2021"
+match = [["december 2021", "25 december", "december 25"]]
+
+[[case.facts]]
+claim = "It launched on an Ariane 5 rocket"
+match = [["ariane"]]
+
+[[case.facts]]
+claim = "It operates near the Sun–Earth L2 Lagrange point"
+match = [["l2", "lagrange"]]
+
+[[case.facts]]
+claim = "It observes mainly in the infrared"
+match = [["infrared"]]
+
+[[case]]
+id = "paris-agreement"
+question = "What temperature goals does the Paris Agreement set, when was it adopted, and how are countries expected to contribute?"
+urls = ["https://en.wikipedia.org/wiki/Paris_Agreement"]
+
+[[case.facts]]
+claim = "Keep warming well below 2 °C"
+match = [["2 °c", "2°c", "2 degrees", "two degrees", "2 °celsius", "2 c above"]]
+
+[[case.facts]]
+claim = "Pursue efforts to limit warming to 1.5 °C"
+match = [["1.5"]]
+
+[[case.facts]]
+claim = "Adopted in 2015"
+match = [["2015"]]
+
+[[case.facts]]
+claim = "Countries submit nationally determined contributions"
+match = [["nationally determined contribution", "ndc"]]
+
+[[case]]
+id = "financial-crisis-2008"
+question = "What were the main causes of the 2007–2008 global financial crisis, and which institutional failure marked its peak?"
+urls = ["https://en.wikipedia.org/wiki/2007%E2%80%932008_financial_crisis"]
+
+[[case.facts]]
+claim = "Subprime mortgage lending"
+match = [["subprime"]]
+
+[[case.facts]]
+claim = "The collapse of Lehman Brothers"
+match = [["lehman"]]
+
+[[case.facts]]
+claim = "A US housing bubble"
+match = [["housing bubble", "housing market", "house prices", "housing prices", "home prices"]]
+
+[[case.facts]]
+claim = "Mortgage-backed securities and related derivatives"
+match = [["mortgage-backed", "securitization", "securitisation", "derivative", "collateralized debt", "cdo"]]
+
+[[case]]
+id = "mrna-vaccines"
+question = "How do mRNA vaccines work, and which mRNA vaccines were the first authorized against COVID-19?"
+urls = ["https://en.wikipedia.org/wiki/MRNA_vaccine"]
+
+[[case.facts]]
+claim = "The mRNA instructs cells to make the spike protein (an antigen)"
+match = [["spike", "antigen"]]
+
+[[case.facts]]
+claim = "The mRNA is delivered in lipid nanoparticles"
+match = [["lipid"]]
+
+[[case.facts]]
+claim = "Pfizer–BioNTech"
+match = [["pfizer", "biontech"]]
+
+[[case.facts]]
+claim = "Moderna"
+match = [["moderna"]]

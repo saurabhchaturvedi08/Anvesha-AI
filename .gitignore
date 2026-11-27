@@ -43,6 +43,9 @@ coverage/
 .mypy_cache/
 .ruff_cache/
 
+# Eval results (evals/baseline.json, if any, is committed on purpose)
+evals/results/
+
 # Locally generated master key (see ANVESHA_SECRET_KEY_FILE)
 .anvesha/
 

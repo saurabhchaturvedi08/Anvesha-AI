@@ -14,7 +14,10 @@ logger = logging.getLogger("anvesha.worker")
 
 async def run_worker() -> None:
     settings = get_settings()
-    async with open_services(settings) as services, open_checkpointer(settings) as checkpointer:
+    async with (
+        open_services(settings, service="anvesha-worker") as services,
+        open_checkpointer(settings) as checkpointer,
+    ):
         executor = RunExecutor(services, checkpointer)
         queue = JobQueue(settings)
         async with queue.app.open_async():

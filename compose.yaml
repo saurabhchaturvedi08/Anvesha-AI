@@ -54,6 +54,14 @@ x-backend-env: &backend-env
   ANVESHA_WORKER_CONCURRENCY: ${ANVESHA_WORKER_CONCURRENCY:-4}
   # Project chat: spending limit for one Research Assistant reply (USD).
   ANVESHA_CHAT_MAX_COST_USD: ${ANVESHA_CHAT_MAX_COST_USD:-0.25}
+  # Tracing to Langfuse (Cloud, or your own: set the host). Both keys turn it on.
+  ANVESHA_LANGFUSE_PUBLIC_KEY: ${ANVESHA_LANGFUSE_PUBLIC_KEY:-}
+  ANVESHA_LANGFUSE_SECRET_KEY: ${ANVESHA_LANGFUSE_SECRET_KEY:-}
+  ANVESHA_LANGFUSE_HOST: ${ANVESHA_LANGFUSE_HOST:-https://cloud.langfuse.com}
+  ANVESHA_OTLP_TRACES_ENDPOINT: ${ANVESHA_OTLP_TRACES_ENDPOINT:-}
+  ANVESHA_OTLP_HEADERS: ${ANVESHA_OTLP_HEADERS:-}
+  ANVESHA_TRACE_CONTENT: ${ANVESHA_TRACE_CONTENT:-false}
+  ANVESHA_TRACE_SAMPLE_RATE: ${ANVESHA_TRACE_SAMPLE_RATE:-1.0}
   # Only plain data may be restored from agent checkpoints (defence in depth).
   LANGGRAPH_STRICT_MSGPACK: "true"
 

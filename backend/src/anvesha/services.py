@@ -14,6 +14,7 @@ from anvesha.llm.gateway import LLMGateway
 from anvesha.sources.service import SourceService
 from anvesha.storage import FileStorage, LocalFileStorage
 from anvesha.tools import ToolRegistry, build_registry
+from anvesha.tracing import setup_tracing, shutdown_tracing
 from anvesha.web.fetch import SafeFetcher
 
 
@@ -33,7 +34,11 @@ class Services:
 
 
 @asynccontextmanager
-async def open_services(settings: Settings) -> AsyncIterator[Services]:
+async def open_services(
+    settings: Settings, *, service: str = "anvesha-api"
+) -> AsyncIterator[Services]:
+    """``service`` names this process in traces (anvesha-api, anvesha-worker...)."""
+    setup_tracing(settings, service=service)
     db = Database(settings.database_url)
     vault = secret_box_from_settings(settings)
     fetcher = SafeFetcher(settings)
@@ -67,3 +72,4 @@ async def open_services(settings: Settings) -> AsyncIterator[Services]:
     finally:
         await fetcher.aclose()
         await db.dispose()
+        shutdown_tracing()

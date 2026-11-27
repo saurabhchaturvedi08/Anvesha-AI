@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
+from anvesha import tracing
 from anvesha.agents import prompts
 from anvesha.agents.context import RunContext
 from anvesha.agents.structured import SubmitTool, validation_problems
@@ -235,7 +236,20 @@ class Researcher:
     async def _handle(self, call: ToolCall) -> str:
         """Run one tool call and return what the model reads. Never raises."""
         try:
-            return await self._dispatch(call)
+            if call.name not in (FINISH.name, RECORD_FINDING.name):
+                return await self._dispatch(call)  # registry tools trace themselves
+            with tracing.span(call.name, kind="tool", input=call.arguments) as span:
+                content = await self._dispatch(call)
+                outcome = (
+                    "rejected"
+                    if content.startswith("REJECTED")
+                    else "recorded"
+                    if content.startswith("Recorded")
+                    else None
+                )
+                tracing.set_attributes(span, {"anvesha.finding.outcome": outcome})
+                tracing.set_output(span, content)
+                return content
         except Exception:
             logger.exception("Researcher tool %s failed in run %s", call.name, self.ctx.run_id)
             return f"Error: the {call.name} tool failed unexpectedly. Try something else."

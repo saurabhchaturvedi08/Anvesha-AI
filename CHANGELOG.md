@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added tracing with OpenTelemetry, exported to Langfuse (`ANVESHA_LANGFUSE_*`) and/or any OTLP endpoint: one trace per run execution (a run's executions share a session), spans for each agent step, model calls as generations with tokens and cost, tool calls, and chat replies. Prompts and outputs are attached only with `ANVESHA_TRACE_CONTENT=true`
+- Added evals (`python -m anvesha.evals`): a golden question set (`evals/golden.toml`) scored on citation precision, cited-sentence rate, fact recall, sub-question coverage and cost, with a configurable gate, baseline comparison, and a `score` command for any finished run
+- Added a CI eval gate: the harness runs on a scripted model with every push, and the live suite runs on a real model (`.github/workflows/evals.yml`) on demand, weekly, and on pull requests labelled `run-evals`
+
 - Added OAuth sign-in for MCP connectors (claude.ai, ChatGPT): dynamic client registration, PKCE, a consent page protected by an operator-set approval secret, rotating refresh tokens, revocation, and discovery metadata
 - Added a public app (`create_public_app`, compose profile `public`) that serves only MCP, sign-in and health, so the REST API never has to be exposed
 - Added Settings → Use from AI assistants: create and revoke access tokens, see and disconnect connected apps
