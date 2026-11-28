@@ -6,6 +6,7 @@ import { errorMessage } from "@/lib/api";
 import { remarkCitations, splitCitations } from "@/lib/citations";
 import { formatUsd, hostname, titleFromQuestion, toNumber, withClarifications } from "@/lib/format";
 import { agentLabel, describeEvent } from "@/lib/run-events";
+import { safeNext } from "@/lib/redirects";
 import { parseSse } from "@/lib/sse";
 
 describe("citations", () => {
@@ -125,5 +126,15 @@ describe("formatting", () => {
       "question: too short",
     );
     expect(errorMessage(null, "fallback")).toBe("fallback");
+  });
+});
+
+describe("safeNext", () => {
+  it("follows only same-site paths after signing in", () => {
+    expect(safeNext("/projects/1?tab=report")).toBe("/projects/1?tab=report");
+    expect(safeNext(null)).toBe("/");
+    expect(safeNext("https://evil.example")).toBe("/");
+    expect(safeNext("//evil.example")).toBe("/");
+    expect(safeNext("/\\evil.example")).toBe("/");
   });
 });

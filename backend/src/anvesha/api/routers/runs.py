@@ -15,6 +15,7 @@ from anvesha.api.deps import (
     SessionDep,
     SettingsDep,
     VaultDep,
+    rate_limit,
 )
 from anvesha.api.schemas.runs import (
     FindingRead,
@@ -39,7 +40,10 @@ FindingStatus = Literal["quote_verified", "verified", "rejected"]
 
 
 @router.post(
-    "/projects/{project_id}/runs", response_model=RunRead, status_code=status.HTTP_202_ACCEPTED
+    "/projects/{project_id}/runs",
+    response_model=RunRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[rate_limit("runs")],
 )
 async def start_run(
     project_id: uuid.UUID,
@@ -164,7 +168,12 @@ async def cancel_run(run_id: uuid.UUID, session: SessionDep, principal: Principa
     return await run_service.cancel_run(session, principal=principal, run_id=run_id)
 
 
-@router.post("/runs/{run_id}/retry", response_model=RunRead, status_code=202)
+@router.post(
+    "/runs/{run_id}/retry",
+    response_model=RunRead,
+    status_code=202,
+    dependencies=[rate_limit("runs")],
+)
 async def retry_run(
     run_id: uuid.UUID, session: SessionDep, principal: PrincipalDep, queue: QueueDep
 ) -> Run:

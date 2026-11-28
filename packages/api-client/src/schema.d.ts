@@ -229,6 +229,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Invitation */
+        get: operations["preview_invitation_api_v1_invitations__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join
+         * @description Join the workspace. Afterwards, switch to it with X-Anvesha-Workspace.
+         */
+        post: operations["join_api_v1_invitations__token__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/test": {
         parameters: {
             query?: never;
@@ -243,6 +280,26 @@ export interface paths {
          * @description Send one prompt to the model configured for a role, to check your setup works.
          */
         post: operations["test_model_api_v1_llm_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Me
+         * @description The signed-in user, the workspace this request acts in, and all of theirs.
+         */
+        get: operations["me_api_v1_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -279,6 +336,27 @@ export interface paths {
         post?: never;
         /** Clear Model Preference */
         delete: operations["clear_model_preference_api_v1_model_preferences__role__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consent Details */
+        get: operations["consent_details_api_v1_oauth_consent_get"];
+        put?: never;
+        /**
+         * Decide Consent
+         * @description Approve (for you, in your current workspace) or deny the connection.
+         */
+        post: operations["decide_consent_api_v1_oauth_consent_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -543,6 +621,50 @@ export interface paths {
         get: operations["list_providers_api_v1_providers_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/openrouter/oauth/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Openrouter Oauth
+         * @description Finish "Connect OpenRouter": trade the code for a key and save it like a pasted key.
+         */
+        post: operations["complete_openrouter_oauth_api_v1_providers_openrouter_oauth_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/openrouter/oauth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Openrouter Oauth
+         * @description Begin "Connect OpenRouter": returns where to send the user, and a state to keep.
+         *
+         *     OpenRouter sends the user back to ``callback_url`` with ``?code=``; finish with
+         *     ``/openrouter/oauth/complete``. The key is created on the user's own OpenRouter
+         *     account, so usage is billed there.
+         */
+        post: operations["start_openrouter_oauth_api_v1_providers_openrouter_oauth_start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -885,6 +1007,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Workspace */
+        get: operations["current_workspace_api_v1_workspace_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove Workspace
+         * @description Delete the workspace with all its projects, keys and members (owners only).
+         */
+        delete: operations["remove_workspace_api_v1_workspace_delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Workspace
+         * @description Rename the workspace (admins).
+         */
+        patch: operations["update_workspace_api_v1_workspace_patch"];
+        trace?: never;
+    };
+    "/api/v1/workspace/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invitations
+         * @description Pending invitations (admins).
+         */
+        get: operations["invitations_api_v1_workspace_invitations_get"];
+        put?: never;
+        /**
+         * Invite
+         * @description Create an invitation link to pass on (admins). Whoever opens it signed in can join.
+         */
+        post: operations["invite_api_v1_workspace_invitations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/invitations/{invitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Uninvite */
+        delete: operations["uninvite_api_v1_workspace_invitations__invitation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Members */
+        get: operations["members_api_v1_workspace_members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Member
+         * @description Remove a member (admins), or leave the workspace (your own id).
+         */
+        delete: operations["delete_member_api_v1_workspace_members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member
+         * @description Change a member's role (admins; only owners make or change owners).
+         */
+        patch: operations["update_member_api_v1_workspace_members__user_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workspaces */
+        get: operations["workspaces_api_v1_workspaces_get"];
+        put?: never;
+        /**
+         * New Workspace
+         * @description Create a shared workspace, owned by you. Switch to it with X-Anvesha-Workspace.
+         */
+        post: operations["new_workspace_api_v1_workspaces_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1206,6 +1456,38 @@ export interface components {
              */
             redirect_hosts: string[];
         };
+        /** ConsentDecision */
+        ConsentDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "allow" | "deny";
+            /** Request */
+            request: string;
+        };
+        /** ConsentDetails */
+        ConsentDetails: {
+            /** Client Id */
+            client_id: string;
+            /** Client Name */
+            client_name: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Redirect Host */
+            redirect_host: string;
+        };
+        /** ConsentResult */
+        ConsentResult: {
+            /**
+             * Redirect Url
+             * @description Send the browser here to finish.
+             */
+            redirect_url: string;
+        };
         /** CredentialSaved */
         CredentialSaved: {
             /** Api Base */
@@ -1316,6 +1598,105 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InvitationCreate */
+        InvitationCreate: {
+            /**
+             * Email
+             * @description Who it's for (shown on the invitation; not enforced).
+             */
+            email?: string | null;
+            /**
+             * Expires In Days
+             * @default 7
+             */
+            expires_in_days?: number;
+            /**
+             * Role
+             * @default member
+             * @enum {string}
+             */
+            role?: "admin" | "member";
+        };
+        /** InvitationCreated */
+        InvitationCreated: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "member";
+            /**
+             * Url
+             * @description The link to pass on. Shown only once.
+             */
+            url: string;
+        };
+        /** InvitationPreview */
+        InvitationPreview: {
+            /** Already Member */
+            already_member: boolean;
+            /** Email */
+            email: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Invited By */
+            invited_by: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "member";
+            /** Workspace Name */
+            workspace_name: string;
+        };
+        /** InvitationRead */
+        InvitationRead: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "member";
+        };
         /** LLMTestRequest */
         LLMTestRequest: {
             /**
@@ -1365,6 +1746,43 @@ export interface components {
              */
             public_url: string | null;
         };
+        /**
+         * MeRead
+         * @description Who the request acts as, and the workspaces they can switch to.
+         */
+        MeRead: {
+            /**
+             * Auth Mode
+             * @enum {string}
+             */
+            auth_mode: "local" | "jwt";
+            user: components["schemas"]["UserRead"];
+            workspace: components["schemas"]["WorkspaceRead"];
+            /** Workspaces */
+            workspaces: components["schemas"]["WorkspaceRead"][];
+        };
+        /** MemberRead */
+        MemberRead: {
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "admin" | "member";
+            user: components["schemas"]["UserRead"];
+        };
+        /** MemberUpdate */
+        MemberUpdate: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "admin" | "member";
+        };
         /** ModelPreferenceRead */
         ModelPreferenceRead: {
             /** Model */
@@ -1383,6 +1801,34 @@ export interface components {
             model: string;
             /** Provider */
             provider: string;
+        };
+        /** OAuthComplete */
+        OAuthComplete: {
+            /** Code */
+            code: string;
+            /** State */
+            state: string;
+        };
+        /** OAuthStartRequest */
+        OAuthStartRequest: {
+            /**
+             * Callback Url
+             * @description Where the provider sends the user back (a page of the web app).
+             */
+            callback_url: string;
+        };
+        /** OAuthStartResponse */
+        OAuthStartResponse: {
+            /**
+             * Authorization Url
+             * @description Send the user here.
+             */
+            authorization_url: string;
+            /**
+             * State
+             * @description Keep this (e.g. in session storage) for the callback.
+             */
+            state: string;
         };
         /** PaperRead */
         PaperRead: {
@@ -1897,9 +2343,9 @@ export interface components {
         ServerConfig: {
             /**
              * Auth Mode
-             * @constant
+             * @enum {string}
              */
-            auth_mode: "local";
+            auth_mode: "local" | "jwt";
             /** Chat Max Cost Usd */
             chat_max_cost_usd: string | null;
             /** Depths */
@@ -2196,6 +2642,18 @@ export interface components {
             /** Unpriced Calls */
             unpriced_calls: number;
         };
+        /** UserRead */
+        UserRead: {
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -2242,6 +2700,35 @@ export interface components {
             title: string;
             /** Url */
             url: string;
+        };
+        /** WorkspaceCreate */
+        WorkspaceCreate: {
+            /** Name */
+            name: string;
+        };
+        /** WorkspaceRead */
+        WorkspaceRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Members */
+            members: number;
+            /** Name */
+            name: string;
+            /** Personal */
+            personal: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "admin" | "member";
+        };
+        /** WorkspaceUpdate */
+        WorkspaceUpdate: {
+            /** Name */
+            name: string;
         };
     };
     responses: never;
@@ -2648,6 +3135,68 @@ export interface operations {
             };
         };
     };
+    preview_invitation_api_v1_invitations__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_api_v1_invitations__token__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     test_model_api_v1_llm_test_post: {
         parameters: {
             query?: never;
@@ -2677,6 +3226,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeRead"];
                 };
             };
         };
@@ -2753,6 +3322,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consent_details_api_v1_oauth_consent_get: {
+        parameters: {
+            query: {
+                request: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_consent_api_v1_oauth_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentResult"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3471,6 +4104,72 @@ export interface operations {
             };
         };
     };
+    complete_openrouter_oauth_api_v1_providers_openrouter_oauth_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_openrouter_oauth_api_v1_providers_openrouter_oauth_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_credential_api_v1_providers__provider__credential_put: {
         parameters: {
             query?: never;
@@ -4067,6 +4766,296 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    current_workspace_api_v1_workspace_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceRead"];
+                };
+            };
+        };
+    };
+    remove_workspace_api_v1_workspace_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_workspace_api_v1_workspace_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invitations_api_v1_workspace_invitations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationRead"][];
+                };
+            };
+        };
+    };
+    invite_api_v1_workspace_invitations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninvite_api_v1_workspace_invitations__invitation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    members_api_v1_workspace_members_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRead"][];
+                };
+            };
+        };
+    };
+    delete_member_api_v1_workspace_members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_api_v1_workspace_members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    workspaces_api_v1_workspaces_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceRead"][];
+                };
+            };
+        };
+    };
+    new_workspace_api_v1_workspaces_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceRead"];
                 };
             };
             /** @description Validation Error */

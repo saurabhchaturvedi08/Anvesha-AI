@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 from sqlalchemy import select
 
-from anvesha.api.deps import PrincipalDep, SessionDep, SettingsDep, SourceServiceDep
+from anvesha.api.deps import PrincipalDep, SessionDep, SettingsDep, SourceServiceDep, rate_limit
 from anvesha.api.schemas.sources import (
     ChunkHitRead,
     EmbedResponse,
@@ -60,6 +60,7 @@ async def list_sources(
     "/sources",
     response_model=SourceCreated,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("tools")],
     responses={200: {"model": SourceCreated, "description": "Already saved"}},
 )
 async def add_source_from_url(
@@ -82,6 +83,7 @@ async def add_source_from_url(
     "/sources/upload",
     response_model=SourceCreated,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("tools")],
     responses={200: {"model": SourceCreated, "description": "Already saved"}},
 )
 async def upload_source(
@@ -167,7 +169,9 @@ async def delete_source(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/sources/search", response_model=SourceSearchResponse)
+@router.post(
+    "/sources/search", response_model=SourceSearchResponse, dependencies=[rate_limit("tools")]
+)
 async def search_sources(
     project_id: uuid.UUID,
     payload: SourceSearchRequest,

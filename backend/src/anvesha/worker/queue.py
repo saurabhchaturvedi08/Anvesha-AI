@@ -23,6 +23,7 @@ from anvesha.config import Settings
 from anvesha.db.models import Run
 from anvesha.db.session import Database
 from anvesha.graph.executor import RetryRun, RunExecutor
+from anvesha.ratelimit import prune_rate_limits
 
 RESEARCH_QUEUE = "research"
 MAINTENANCE_QUEUE = "maintenance"
@@ -87,6 +88,7 @@ class JobQueue:
         async def prune_credentials(context: JobContext, timestamp: int) -> None:
             db: Database = context.additional_context["db"]
             await prune_expired_credentials(db)
+            await prune_rate_limits(db)
 
         self._run_task = run_research
 

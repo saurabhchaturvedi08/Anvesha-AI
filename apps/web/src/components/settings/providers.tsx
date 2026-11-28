@@ -2,7 +2,7 @@
 
 import type { Provider, SearchProvider } from "@anvesha/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLinkIcon, KeyRoundIcon } from "lucide-react";
+import { ExternalLinkIcon, KeyRoundIcon, LinkIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -20,7 +20,8 @@ import {
 import { Callout, ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { FieldHint, Input, Label } from "@/components/ui/input";
 import { api, describeError, unwrap } from "@/lib/api";
-import { keys, useProviders, useSearchProviders } from "@/lib/queries";
+import { connectOpenRouter } from "@/lib/openrouter";
+import { keys, useCanManage, useProviders, useSearchProviders } from "@/lib/queries";
 
 function AccessBadge({
   source,
@@ -40,6 +41,15 @@ export function ModelProvidersCard() {
   const providers = useProviders();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Provider | null>(null);
+  const canManage = useCanManage();
+  const [connecting, setConnecting] = useState(false);
+  const connect = () => {
+    setConnecting(true);
+    connectOpenRouter().catch((error: unknown) => {
+      setConnecting(false);
+      toast.error(describeError(error));
+    });
+  };
   const remove = useMutation({
     mutationFn: (id: string) =>
       unwrap(api.DELETE("/api/v1/providers/{provider}/credential", { params: { path: { provider: id } } })),
@@ -90,7 +100,13 @@ export function ModelProvidersCard() {
                   {provider.requires_api_key ? "Get a key" : "Docs"} <ExternalLinkIcon className="size-3" />
                 </a>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditing(provider)}>
+                  {provider.id === "openrouter" && provider.source !== "workspace" && (
+                    <Button size="sm" disabled={!canManage || connecting} onClick={connect}>
+                      {connecting ? <Spinner /> : <LinkIcon />}
+                      Connect account
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" disabled={!canManage} onClick={() => setEditing(provider)}>
                     <KeyRoundIcon />
                     {provider.source === "workspace" ? "Replace" : provider.requires_api_key ? "Add key" : "Set up"}
                   </Button>
@@ -98,7 +114,7 @@ export function ModelProvidersCard() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      disabled={remove.isPending}
+                      disabled={!canManage || remove.isPending}
                       onClick={() => remove.mutate(provider.id)}
                     >
                       Remove

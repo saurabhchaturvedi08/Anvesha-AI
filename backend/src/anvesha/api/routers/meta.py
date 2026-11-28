@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from anvesha import __version__
 from anvesha.agents.clarifier import clarify
 from anvesha.agents.context import PROFILES, WorkspaceCompleter
-from anvesha.api.deps import GatewayDep, PrincipalDep, SettingsDep
+from anvesha.api.deps import GatewayDep, PrincipalDep, SettingsDep, rate_limit
 from anvesha.api.schemas.meta import (
     ClarifyingQuestionRead,
     ClarifyRequest,
@@ -35,7 +35,7 @@ async def server_config(settings: SettingsDep) -> ServerConfig:
     )
 
 
-@router.post("/clarify", response_model=ClarifyResponse)
+@router.post("/clarify", response_model=ClarifyResponse, dependencies=[rate_limit("clarify")])
 async def clarify_question(
     payload: ClarifyRequest, gateway: GatewayDep, principal: PrincipalDep
 ) -> ClarifyResponse:

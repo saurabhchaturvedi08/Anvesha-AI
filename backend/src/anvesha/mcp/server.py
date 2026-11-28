@@ -27,7 +27,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from anvesha import __version__
 from anvesha.access_tokens import verify_access_token
+from anvesha.errors import RateLimitedError
 from anvesha.mcp.tools import McpContext, McpServices, McpTool, build_mcp_tools
+from anvesha.ratelimit import check_rate_limit
 from anvesha.tenancy import Principal
 from anvesha.tools import ToolResult
 
@@ -218,8 +220,13 @@ class AnveshaMCP:
         principal = _principal_from_token()
         if principal is None:
             return _call_result(ToolResult.error("Not authenticated.", "unauthenticated"))
+        services = self.services()
         try:
-            context = McpContext(principal, self.services())
+            await check_rate_limit(services.db, services.settings, "tools", principal)
+        except RateLimitedError as exc:
+            return _call_result(ToolResult.error(str(exc), exc.code, retryable=True))
+        try:
+            context = McpContext(principal, services)
             result = await tool.invoke(context, params.arguments or {})
         except Exception:
             logger.exception("MCP tool %s failed", params.name)

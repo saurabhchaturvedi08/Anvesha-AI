@@ -19,7 +19,8 @@ Anvesha is being rebuilt as **v2**, a web-first, multi-agent architecture. See t
 - [x] **Phase 4: Web app.** A guided new-research flow (with optional question refinement), live agent activity, plan review and editing, reports with hoverable citations that show the quoted evidence, a sources and evidence explorer, a Research Assistant chat that answers from the project's evidence, and settings for keys, models, search and usage.
 - [x] **Phase 5: MCP server.** Use Anvesha from Claude, ChatGPT, Gemini CLI, Cursor and other MCP clients: start research, read cited reports, search verified evidence, or research with the agents' own search, reading and quote-checking tools. Clients connect with an access token or, for claude.ai and ChatGPT connectors, OAuth sign-in through a public endpoint that exposes only MCP.
 - [x] **Phase 6: Quality.** Langfuse (or any OpenTelemetry backend) traces every run: agent steps, model calls with tokens and cost, and tool calls. A golden question set is scored on citation precision, cited sentences, fact recall and cost, with a gate in CI. See [evals/](evals/README.md).
-- [ ] Phases 7–8: Hosted SaaS, desktop
+- [x] **Phase 7: Accounts and teams.** Optional sign-in (email and password, plus GitHub or Google) with personal and team workspaces, invitations and roles; one-click "Connect OpenRouter"; rate limits; MCP connections approved by the signed-in user. Billing and the hosted deploy pipeline are not built yet.
+- [ ] Phase 8: Desktop app, exports, Zotero import, research templates
 
 The v1 code lives in [`legacy/`](legacy/) for reference while v2 reaches parity.
 
@@ -121,6 +122,26 @@ These apps call Anvesha from their own servers, so Anvesha must be reachable fro
 
 Approved apps get hour-long access tokens that they renew automatically. They're listed under **Settings → Use from AI assistants → Connected apps**, where you can disconnect them. Ten wrong approval secrets pause approval for 15 minutes.
 
+
+### Use it with others (sign-in and team workspaces)
+
+By default Anvesha runs in single-user mode: no accounts, one workspace. To let several people use one server, turn on sign-in in `.env`:
+
+```bash
+ANVESHA_AUTH_MODE=jwt
+ANVESHA_WEB_URL=https://anvesha.example.org   # where people open the web app
+BETTER_AUTH_SECRET=...                        # openssl rand -base64 32; keep it stable
+```
+
+Then `docker compose up --build`. The web app asks people to create an account or sign in. Everyone gets a personal workspace and can create team workspaces from the workspace menu. Under **Settings → Workspace**, admins invite people with a link (Anvesha doesn't send email yet), change roles and remove members:
+
+- **Members** research: projects, runs, chat, sources.
+- **Admins** also manage the workspace's model keys, models and members.
+- **Owners** can also delete the workspace. Every workspace keeps at least one owner.
+
+Under the hood, the web app ([Better Auth](https://www.better-auth.com/)) keeps the session and calls the API with a five-minute token signed by keys it publishes at `/api/auth/jwks`. The API checks every request against those keys, so it must not be reachable except through the web app or with valid tokens. Accounts live in the `auth` schema of the same database. `ANVESHA_AUTH_DISABLE_SIGNUP=true` closes sign-up, and GitHub or Google sign-in turn on when their OAuth keys are set.
+
+With sign-in on, rate limits apply per workspace (research runs) and per user (chat, searches and tool calls, including over MCP). They are configurable in `.env`. **Connect account** next to OpenRouter in Settings creates an OpenRouter key on the user's own account, billed there, with no copy-pasting. MCP connectors are approved on the web app's `/connect` page by the signed-in user, for their current workspace, instead of with the shared approval secret.
 
 ### Search and gather sources
 

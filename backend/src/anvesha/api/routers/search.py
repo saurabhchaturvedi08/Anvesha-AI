@@ -3,12 +3,14 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Response, status
 
 from anvesha.api.deps import (
+    AdminDep,
     DatabaseDep,
     HttpDep,
     PrincipalDep,
     SessionDep,
     SettingsDep,
     VaultDep,
+    rate_limit,
 )
 from anvesha.api.schemas.search import (
     ScholarSearchRequest,
@@ -80,7 +82,7 @@ async def save_search_credential(
     provider: str,
     payload: SearchCredentialWrite,
     session: SessionDep,
-    principal: PrincipalDep,
+    principal: AdminDep,
     settings: SettingsDep,
     vault: VaultDep,
     http: HttpDep,
@@ -129,7 +131,7 @@ async def save_search_credential(
 
 @router.delete("/providers/{provider}/credential", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_search_credential(
-    provider: str, session: SessionDep, principal: PrincipalDep
+    provider: str, session: SessionDep, principal: AdminDep
 ) -> Response:
     spec = get_search_provider(provider)
     credential = await get_credential(session, principal.workspace_id, spec.id)
@@ -140,7 +142,7 @@ async def delete_search_credential(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/web", response_model=WebSearchResponseRead)
+@router.post("/web", response_model=WebSearchResponseRead, dependencies=[rate_limit("tools")])
 async def search_web(
     payload: WebSearchRequest,
     db: DatabaseDep,
@@ -175,7 +177,11 @@ async def list_scholar_sources() -> list[ScholarSourceRead]:
     ]
 
 
-@router.post("/scholarly", response_model=ScholarSearchResponseRead)
+@router.post(
+    "/scholarly",
+    response_model=ScholarSearchResponseRead,
+    dependencies=[rate_limit("tools")],
+)
 async def search_scholarly(
     payload: ScholarSearchRequest, settings: SettingsDep, http: HttpDep
 ) -> ScholarSearchResponseRead:

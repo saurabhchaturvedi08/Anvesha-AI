@@ -3,17 +3,28 @@
  * (no CORS, and the API needn't be exposed). Bodies and responses are streamed, which
  * keeps uploads and live Server-Sent Events working.
  *
- * When multi-user auth arrives, this is where the session becomes the API's credentials.
+ * In multi-user mode this is where the session becomes the API's credentials: a
+ * short-lived JWT for the signed-in user. The workspace the user picked (a cookie set by
+ * the workspace switcher) goes along as X-Anvesha-Workspace.
  */
 
 import type { NextRequest } from "next/server";
+
+import { apiToken, authMode } from "@/lib/auth-server";
+import { WORKSPACE_COOKIE } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
 const API_URL = (process.env.ANVESHA_API_URL ?? "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 const REQUEST_HEADERS = ["accept", "content-type", "last-event-id"];
-const RESPONSE_HEADERS = ["content-type", "cache-control", "content-disposition", "x-accel-buffering"];
+const RESPONSE_HEADERS = [
+  "content-type",
+  "cache-control",
+  "content-disposition",
+  "x-accel-buffering",
+  "retry-after",
+];
 
 type Context = { params: Promise<{ path: string[] }> };
 
@@ -25,6 +36,15 @@ async function forward(request: NextRequest, { params }: Context): Promise<Respo
   for (const name of REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
+  }
+  const workspace = request.cookies.get(WORKSPACE_COOKIE)?.value;
+  if (workspace && /^[0-9a-f-]{36}$/i.test(workspace)) headers.set("x-anvesha-workspace", workspace);
+  if (authMode === "jwt") {
+    const token = await apiToken(request.headers);
+    if (!token) {
+      return Response.json({ detail: "Sign in first.", code: "unauthenticated" }, { status: 401 });
+    }
+    headers.set("authorization", `Bearer ${token}`);
   }
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 

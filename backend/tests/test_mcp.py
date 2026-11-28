@@ -276,6 +276,13 @@ async def test_tokens_only_reach_their_own_workspace(
             text("INSERT INTO workspaces (id, name) VALUES (:id, 'Other')"),
             {"id": other_workspace},
         )
+        await session.execute(
+            text(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) "
+                "VALUES (:workspace, :user, 'owner')"
+            ),
+            {"workspace": other_workspace, "user": other_user},
+        )
         await session.commit()
         _, theirs = await create_access_token(
             session, Principal(user_id=other_user, workspace_id=other_workspace), name="theirs"

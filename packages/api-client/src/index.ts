@@ -33,6 +33,14 @@ export type AccessToken = Schemas["AccessTokenRead"];
 export type AccessTokenCreated = Schemas["AccessTokenCreated"];
 export type McpConnection = Schemas["ConnectionRead"];
 export type McpInfo = Schemas["McpInfo"];
+export type Me = Schemas["MeRead"];
+export type Workspace = Schemas["WorkspaceRead"];
+export type WorkspaceRole = Workspace["role"];
+export type WorkspaceMember = Schemas["MemberRead"];
+export type Invitation = Schemas["InvitationRead"];
+export type InvitationCreated = Schemas["InvitationCreated"];
+export type InvitationPreview = Schemas["InvitationPreview"];
+export type ConsentDetails = Schemas["ConsentDetails"];
 
 export type ApiClient = Client<paths>;
 

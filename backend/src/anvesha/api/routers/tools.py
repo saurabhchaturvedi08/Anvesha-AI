@@ -14,6 +14,7 @@ from anvesha.api.deps import (
     SourceServiceDep,
     ToolsDep,
     VaultDep,
+    rate_limit,
 )
 from anvesha.sources.service import require_project
 from anvesha.tools import ToolContext
@@ -47,7 +48,11 @@ async def list_tools(tools: ToolsDep) -> list[ToolRead]:
     return [ToolRead(**spec.__dict__) for spec in tools.specs()]
 
 
-@router.post("/api/v1/projects/{project_id}/tools/{name}", response_model=ToolResultRead)
+@router.post(
+    "/api/v1/projects/{project_id}/tools/{name}",
+    response_model=ToolResultRead,
+    dependencies=[rate_limit("tools")],
+)
 async def invoke_tool(
     project_id: uuid.UUID,
     name: str,

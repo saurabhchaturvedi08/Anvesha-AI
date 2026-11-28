@@ -33,7 +33,41 @@ export const keys = {
   accessTokens: ["access-tokens"] as const,
   connections: ["connections"] as const,
   mcpInfo: ["mcp-info"] as const,
+  me: ["me"] as const,
+  members: ["workspace-members"] as const,
+  invitations: ["workspace-invitations"] as const,
 };
+
+/** The signed-in user, the current workspace (with their role in it), and all of theirs. */
+export function useMe() {
+  return useQuery({
+    queryKey: keys.me,
+    queryFn: () => unwrap(api.GET("/api/v1/me")),
+    staleTime: 60_000,
+  });
+}
+
+/** Whether the current user may change the workspace's shared setup (keys, models, people). */
+export function useCanManage(): boolean {
+  const me = useMe();
+  return me.data ? me.data.workspace.role !== "member" : false;
+}
+
+export function useMembers(enabled = true) {
+  return useQuery({
+    queryKey: keys.members,
+    queryFn: () => unwrap(api.GET("/api/v1/workspace/members")),
+    enabled,
+  });
+}
+
+export function useInvitations(enabled = true) {
+  return useQuery({
+    queryKey: keys.invitations,
+    queryFn: () => unwrap(api.GET("/api/v1/workspace/invitations")),
+    enabled,
+  });
+}
 
 export function useServerConfig() {
   return useQuery({

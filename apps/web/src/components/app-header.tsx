@@ -7,7 +7,10 @@ import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
+import { AccountMenu, WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { cn } from "@/lib/utils";
+
+const AUTH_PAGES = ["/sign-in", "/sign-up"];
 
 const NAV = [
   { href: "/", label: "Projects", match: (path: string) => path === "/" || path.startsWith("/projects") },
@@ -37,6 +40,7 @@ function ThemeToggle() {
 
 export function AppHeader() {
   const pathname = usePathname();
+  const onAuthPage = AUTH_PAGES.includes(pathname);
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
@@ -46,7 +50,8 @@ export function AppHeader() {
           </span>
           <span>Anvesha</span>
         </Link>
-        <nav aria-label="Main" className="flex items-center gap-1">
+        {!onAuthPage && <WorkspaceSwitcher />}
+        <nav aria-label="Main" className={cn("flex items-center gap-1", onAuthPage && "hidden")}>
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -70,12 +75,17 @@ export function AppHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
-          <Button asChild size="sm">
-            <Link href="/new">
-              <PlusIcon />
-              <span className="max-sm:sr-only">New research</span>
-            </Link>
-          </Button>
+          {!onAuthPage && (
+            <>
+              <Button asChild size="sm">
+                <Link href="/new">
+                  <PlusIcon />
+                  <span className="max-sm:sr-only">New research</span>
+                </Link>
+              </Button>
+              <AccountMenu />
+            </>
+          )}
         </div>
       </div>
     </header>

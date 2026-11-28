@@ -44,7 +44,10 @@ def upgrade() -> None:
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("accepted_by_id", sa.UUID(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.CheckConstraint(
             "role IN ('admin', 'member')", name=op.f("ck_workspace_invitations_role")

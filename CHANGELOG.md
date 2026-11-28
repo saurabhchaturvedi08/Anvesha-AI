@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added optional multi-user mode (`ANVESHA_AUTH_MODE=jwt`): Better Auth sign-in in the web app (email and password, optional GitHub/Google), and the API verifies the web app's short-lived EdDSA JWTs against its JWKS. Users are created on first sign-in with a personal workspace
+- Added team workspaces with owner, admin and member roles, single-use invitation links, a workspace switcher, and workspace settings. Admins manage keys and models; removing a member revokes their tokens and connected apps
+- Added "Connect OpenRouter" (OAuth PKCE): a key on the user's own OpenRouter account, saved like a pasted key
+- Added rate limits counted in Postgres (shared by all API replicas): research runs per workspace; chat, question checks, searches and tool calls (REST and MCP) per user; `429` with `Retry-After`
+- In multi-user mode, MCP connections are approved by the signed-in user on the web app's `/connect` page instead of with the approval secret
+- Every REST route now requires a signed-in user in multi-user mode, including ones that didn't ask who was calling
+
 - Added tracing with OpenTelemetry, exported to Langfuse (`ANVESHA_LANGFUSE_*`) and/or any OTLP endpoint: one trace per run execution (a run's executions share a session), spans for each agent step, model calls as generations with tokens and cost, tool calls, and chat replies. Prompts and outputs are attached only with `ANVESHA_TRACE_CONTENT=true`
 - Added evals (`python -m anvesha.evals`): a golden question set (`evals/golden.toml`) scored on citation precision, cited-sentence rate, fact recall, sub-question coverage and cost, with a configurable gate, baseline comparison, and a `score` command for any finished run
 - Added a CI eval gate: the harness runs on a scripted model with every push, and the live suite runs on a real model (`.github/workflows/evals.yml`) on demand, weekly, and on pull requests labelled `run-evals`

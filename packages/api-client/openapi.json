@@ -698,6 +698,81 @@
         "title": "ConnectionRead",
         "type": "object"
       },
+      "ConsentDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "request": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Request",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request",
+          "decision"
+        ],
+        "title": "ConsentDecision",
+        "type": "object"
+      },
+      "ConsentDetails": {
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "redirect_host": {
+            "title": "Redirect Host",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "redirect_host",
+          "expires_at"
+        ],
+        "title": "ConsentDetails",
+        "type": "object"
+      },
+      "ConsentResult": {
+        "properties": {
+          "redirect_url": {
+            "description": "Send the browser here to finish.",
+            "title": "Redirect Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "redirect_url"
+        ],
+        "title": "ConsentResult",
+        "type": "object"
+      },
       "CredentialSaved": {
         "properties": {
           "api_base": {
@@ -1061,6 +1136,226 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InvitationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who it's for (shown on the invitation; not enforced).",
+            "title": "Email"
+          },
+          "expires_in_days": {
+            "default": 7,
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "type": "integer"
+          },
+          "role": {
+            "default": "member",
+            "enum": [
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "title": "InvitationCreate",
+        "type": "object"
+      },
+      "InvitationCreated": {
+        "properties": {
+          "accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "description": "The link to pass on. Shown only once.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "created_at",
+          "expires_at",
+          "accepted_at",
+          "url"
+        ],
+        "title": "InvitationCreated",
+        "type": "object"
+      },
+      "InvitationPreview": {
+        "properties": {
+          "already_member": {
+            "title": "Already Member",
+            "type": "boolean"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "invited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invited By"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "workspace_name": {
+            "title": "Workspace Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_name",
+          "role",
+          "email",
+          "invited_by",
+          "expires_at",
+          "already_member"
+        ],
+        "title": "InvitationPreview",
+        "type": "object"
+      },
+      "InvitationRead": {
+        "properties": {
+          "accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "created_at",
+          "expires_at",
+          "accepted_at"
+        ],
+        "title": "InvitationRead",
+        "type": "object"
+      },
       "LLMTestRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1170,6 +1465,87 @@
         "title": "McpInfo",
         "type": "object"
       },
+      "MeRead": {
+        "description": "Who the request acts as, and the workspaces they can switch to.",
+        "properties": {
+          "auth_mode": {
+            "enum": [
+              "local",
+              "jwt"
+            ],
+            "title": "Auth Mode",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserRead"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceRead"
+          },
+          "workspaces": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceRead"
+            },
+            "title": "Workspaces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "auth_mode",
+          "user",
+          "workspace",
+          "workspaces"
+        ],
+        "title": "MeRead",
+        "type": "object"
+      },
+      "MemberRead": {
+        "properties": {
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserRead"
+          }
+        },
+        "required": [
+          "user",
+          "role",
+          "joined_at"
+        ],
+        "title": "MemberRead",
+        "type": "object"
+      },
+      "MemberUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "MemberUpdate",
+        "type": "object"
+      },
       "ModelPreferenceRead": {
         "properties": {
           "model": {
@@ -1235,6 +1611,66 @@
           "model"
         ],
         "title": "ModelPreferenceWrite",
+        "type": "object"
+      },
+      "OAuthComplete": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "OAuthComplete",
+        "type": "object"
+      },
+      "OAuthStartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "callback_url": {
+            "description": "Where the provider sends the user back (a page of the web app).",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Callback Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "callback_url"
+        ],
+        "title": "OAuthStartRequest",
+        "type": "object"
+      },
+      "OAuthStartResponse": {
+        "properties": {
+          "authorization_url": {
+            "description": "Send the user here.",
+            "title": "Authorization Url",
+            "type": "string"
+          },
+          "state": {
+            "description": "Keep this (e.g. in session storage) for the callback.",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url",
+          "state"
+        ],
+        "title": "OAuthStartResponse",
         "type": "object"
       },
       "PaperRead": {
@@ -2723,7 +3159,10 @@
         "description": "What clients need to know about this server's limits and modes.",
         "properties": {
           "auth_mode": {
-            "const": "local",
+            "enum": [
+              "local",
+              "jwt"
+            ],
             "title": "Auth Mode",
             "type": "string"
           },
@@ -3587,6 +4026,37 @@
         "title": "UsageSummary",
         "type": "object"
       },
+      "UserRead": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "display_name"
+        ],
+        "title": "UserRead",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3733,6 +4203,77 @@
           "engine"
         ],
         "title": "WebSearchResultRead",
+        "type": "object"
+      },
+      "WorkspaceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WorkspaceCreate",
+        "type": "object"
+      },
+      "WorkspaceRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "members": {
+            "title": "Members",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "personal": {
+            "title": "Personal",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "personal",
+          "role",
+          "members"
+        ],
+        "title": "WorkspaceRead",
+        "type": "object"
+      },
+      "WorkspaceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WorkspaceUpdate",
         "type": "object"
       }
     }
@@ -4259,6 +4800,91 @@
         ]
       }
     },
+    "/api/v1/invitations/{token}": {
+      "get": {
+        "operationId": "preview_invitation_api_v1_invitations__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Invitation",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/invitations/{token}/accept": {
+      "post": {
+        "description": "Join the workspace. Afterwards, switch to it with X-Anvesha-Workspace.",
+        "operationId": "join_api_v1_invitations__token__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
     "/api/v1/llm/test": {
       "post": {
         "description": "Send one prompt to the model configured for a role, to check your setup works.",
@@ -4298,6 +4924,28 @@
         "summary": "Test Model",
         "tags": [
           "usage"
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "description": "The signed-in user, the workspace this request acts in, and all of theirs.",
+        "operationId": "me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "workspaces"
         ]
       }
     },
@@ -4422,6 +5070,90 @@
         "summary": "Set Model Preference",
         "tags": [
           "model preferences"
+        ]
+      }
+    },
+    "/api/v1/oauth/consent": {
+      "get": {
+        "operationId": "consent_details_api_v1_oauth_consent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "maxLength": 8000,
+              "minLength": 1,
+              "title": "Request",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDetails"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consent Details",
+        "tags": [
+          "connections"
+        ]
+      },
+      "post": {
+        "description": "Approve (for you, in your current workspace) or deny the connection.",
+        "operationId": "decide_consent_api_v1_oauth_consent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Consent",
+        "tags": [
+          "connections"
         ]
       }
     },
@@ -5559,6 +6291,90 @@
         ]
       }
     },
+    "/api/v1/providers/openrouter/oauth/complete": {
+      "post": {
+        "description": "Finish \"Connect OpenRouter\": trade the code for a key and save it like a pasted key.",
+        "operationId": "complete_openrouter_oauth_api_v1_providers_openrouter_oauth_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialSaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Openrouter Oauth",
+        "tags": [
+          "providers"
+        ]
+      }
+    },
+    "/api/v1/providers/openrouter/oauth/start": {
+      "post": {
+        "description": "Begin \"Connect OpenRouter\": returns where to send the user, and a state to keep.\n\nOpenRouter sends the user back to ``callback_url`` with ``?code=``; finish with\n``/openrouter/oauth/complete``. The key is created on the user's own OpenRouter\naccount, so usage is billed there.",
+        "operationId": "start_openrouter_oauth_api_v1_providers_openrouter_oauth_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Openrouter Oauth",
+        "tags": [
+          "providers"
+        ]
+      }
+    },
     "/api/v1/providers/{provider}/credential": {
       "delete": {
         "operationId": "delete_credential_api_v1_providers__provider__credential_delete",
@@ -6456,6 +7272,361 @@
         "summary": "Usage Summary",
         "tags": [
           "usage"
+        ]
+      }
+    },
+    "/api/v1/workspace": {
+      "delete": {
+        "description": "Delete the workspace with all its projects, keys and members (owners only).",
+        "operationId": "remove_workspace_api_v1_workspace_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Remove Workspace",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "get": {
+        "operationId": "current_workspace_api_v1_workspace_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Current Workspace",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "description": "Rename the workspace (admins).",
+        "operationId": "update_workspace_api_v1_workspace_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspace/invitations": {
+      "get": {
+        "description": "Pending invitations (admins).",
+        "operationId": "invitations_api_v1_workspace_invitations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationRead"
+                  },
+                  "title": "Response Invitations Api V1 Workspace Invitations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Invitations",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "Create an invitation link to pass on (admins). Whoever opens it signed in can join.",
+        "operationId": "invite_api_v1_workspace_invitations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspace/invitations/{invitation_id}": {
+      "delete": {
+        "operationId": "uninvite_api_v1_workspace_invitations__invitation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invitation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Uninvite",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspace/members": {
+      "get": {
+        "operationId": "members_api_v1_workspace_members_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberRead"
+                  },
+                  "title": "Response Members Api V1 Workspace Members Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Members",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspace/members/{user_id}": {
+      "delete": {
+        "description": "Remove a member (admins), or leave the workspace (your own id).",
+        "operationId": "delete_member_api_v1_workspace_members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Member",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "description": "Change a member's role (admins; only owners make or change owners).",
+        "operationId": "update_member_api_v1_workspace_members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Member",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces": {
+      "get": {
+        "operationId": "workspaces_api_v1_workspaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceRead"
+                  },
+                  "title": "Response Workspaces Api V1 Workspaces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Workspaces",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "Create a shared workspace, owned by you. Switch to it with X-Anvesha-Workspace.",
+        "operationId": "new_workspace_api_v1_workspaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "New Workspace",
+        "tags": [
+          "workspaces"
         ]
       }
     },

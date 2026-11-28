@@ -18,7 +18,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from anvesha.config import get_settings
-from anvesha.db.models import AccessToken
+from anvesha.db.models import AccessToken, WorkspaceMember
 from anvesha.db.session import Database
 from anvesha.errors import NotFoundError
 from anvesha.tenancy import Principal, ensure_local_principal
@@ -115,6 +115,15 @@ async def verify_access_token(
         )
         if row is None or (row.expires_at is not None and row.expires_at <= now):
             return None
+        # A token acts with its owner's current role, and stops working if they leave.
+        role = await session.scalar(
+            select(WorkspaceMember.role).where(
+                WorkspaceMember.workspace_id == row.workspace_id,
+                WorkspaceMember.user_id == row.user_id,
+            )
+        )
+        if role is None:
+            return None
         if track_use and (
             row.last_used_at is None or now - row.last_used_at >= LAST_USED_RESOLUTION
         ):
@@ -124,7 +133,7 @@ async def verify_access_token(
             await session.commit()
         return VerifiedToken(
             token_id=row.id,
-            principal=Principal(user_id=row.user_id, workspace_id=row.workspace_id),
+            principal=Principal(user_id=row.user_id, workspace_id=row.workspace_id, role=role),
             expires_at=row.expires_at,
             client_id=row.client_id,
             scopes=tuple(row.scopes or ()),
@@ -204,6 +213,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     revoke = commands.add_parser("revoke", help="Revoke a token.")
     revoke.add_argument("token_id", type=uuid.UUID)
     args = parser.parse_args(argv)
+    if get_settings().auth_mode != "local":
+        parser.exit(
+            1,
+            "This command manages the built-in user's tokens (single-user mode). With "
+            "sign-in on, create tokens in the web app: Settings → Use from AI assistants.\n",
+        )
     if args.command == "create" and not 1 <= len(args.name) <= 100:
         parser.error("--name must be 1 to 100 characters.")
     try:

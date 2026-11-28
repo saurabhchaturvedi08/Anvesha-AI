@@ -1,13 +1,14 @@
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import ProgrammingError
 from starlette.routing import Route
 
 from anvesha import __version__
+from anvesha.api.deps import get_principal
 from anvesha.api.routers import (
     access_tokens,
     chat,
@@ -15,6 +16,7 @@ from anvesha.api.routers import (
     health,
     meta,
     model_preferences,
+    oauth_consent,
     projects,
     providers,
     runs,
@@ -22,10 +24,12 @@ from anvesha.api.routers import (
     sources,
     tools,
     usage,
+    workspaces,
 )
+from anvesha.auth import JwtVerifier
 from anvesha.chat import ChatService
 from anvesha.config import Settings, get_settings
-from anvesha.errors import AppError
+from anvesha.errors import AppError, RateLimitedError
 from anvesha.events.broker import RunEventBroker
 from anvesha.mcp import MCP_PATH, AnveshaMCP, McpServices
 from anvesha.mcp.oauth import AnveshaOAuthProvider, OAuthDeps, oauth_routes, resource_metadata_url
@@ -47,7 +51,13 @@ def create_public_app(settings: Settings | None = None) -> FastAPI:
 def _check_mcp_settings(settings: Settings, *, public: bool) -> None:
     if public and not settings.mcp_enabled:
         raise RuntimeError("The public app serves MCP only; set ANVESHA_MCP_ENABLED=true.")
-    if settings.mcp_oauth_enabled and settings.mcp_approval_secret is None:
+    # In multi-user mode people approve connections in the web app, signed in; the
+    # approval secret is only for single-user mode, which has no accounts.
+    if (
+        settings.mcp_oauth_enabled
+        and settings.auth_mode == "local"
+        and settings.mcp_approval_secret is None
+    ):
         raise RuntimeError(
             "ANVESHA_MCP_PUBLIC_URL is set, so OAuth sign-in is on, but "
             "ANVESHA_MCP_APPROVAL_SECRET is not. Set it to a long random value: in "
@@ -72,6 +82,11 @@ def create_app(settings: Settings | None = None, *, public: bool = False) -> Fas
             app.state.storage = services.storage
             app.state.sources = services.sources
             app.state.tools = services.tools
+            # Multi-user mode: requests carry the web app's JWTs, checked against its keys.
+            app.state.jwt_verifier = (
+                JwtVerifier(settings, services.http) if settings.auth_mode == "jwt" else None
+            )
+            app.state.oauth_provider = oauth
             if settings.mcp_oauth_enabled and services.vault is None:
                 raise RuntimeError(
                     "OAuth sign-in stores client secrets encrypted, so it needs a master key "
@@ -156,8 +171,13 @@ def create_app(settings: Settings | None = None, *, public: bool = False) -> Fas
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+        headers = (
+            {"Retry-After": str(exc.retry_after)} if isinstance(exc, RateLimitedError) else None
+        )
         return JSONResponse(
-            status_code=exc.http_status, content={"detail": str(exc), "code": exc.code}
+            status_code=exc.http_status,
+            content={"detail": str(exc), "code": exc.code},
+            headers=headers,
         )
 
     app.include_router(health.router)
@@ -175,8 +195,12 @@ def create_app(settings: Settings | None = None, *, public: bool = False) -> Fas
             chat.router,
             access_tokens.router,
             connections.router,
+            workspaces.router,
+            oauth_consent.router,
         ):
-            app.include_router(router)
+            # Every REST route needs a signed-in user in multi-user mode, including the
+            # few that don't otherwise ask who is calling (cached per request).
+            app.include_router(router, dependencies=[Depends(get_principal)])
     if oauth is not None:
         app.router.routes.extend(oauth_routes(oauth, settings))
     if mcp_server is not None:

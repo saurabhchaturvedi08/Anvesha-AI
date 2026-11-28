@@ -18,7 +18,7 @@ class ServerConfig(BaseModel):
     """What clients need to know about this server's limits and modes."""
 
     version: str
-    auth_mode: Literal["local"]
+    auth_mode: Literal["local", "jwt"]
     run_default_max_cost_usd: Decimal | None
     run_max_cost_ceiling_usd: Decimal | None
     chat_max_cost_usd: Decimal | None

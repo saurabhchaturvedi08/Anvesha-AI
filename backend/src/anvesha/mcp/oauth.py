@@ -67,6 +67,8 @@ from anvesha.tenancy import Principal
 logger = logging.getLogger(__name__)
 
 CONSENT_PATH = "/oauth/consent"
+# The web app's page for approving a connection (multi-user mode).
+WEB_CONSENT_PATH = "/connect"
 CONSENT_TTL_SECONDS = 10 * 60
 CODE_TTL_SECONDS = 5 * 60
 REFRESH_PREFIX = "anvr_"
@@ -187,7 +189,21 @@ class AnveshaOAuthProvider(
     ) -> str:
         deps = self.deps()
         sealed = seal_consent_request(deps.vault, client.client_id, params)
-        return f"{deps.settings.mcp_public_url}{CONSENT_PATH}?{urlencode({'request': sealed})}"
+        query = urlencode({"request": sealed})
+        if deps.settings.auth_mode == "jwt":
+            # Multi-user: the signed-in user approves in the web app (see oauth_consent).
+            return f"{deps.settings.web_url}{WEB_CONSENT_PATH}?{query}"
+        return f"{deps.settings.mcp_public_url}{CONSENT_PATH}?{query}"
+
+    async def load_consent(
+        self, sealed: str
+    ) -> tuple["ConsentRequest", OAuthClientInformationFull] | None:
+        """A pending sign-in and its client, or None if expired, tampered with or unknown."""
+        request = open_consent_request(self.deps().vault, sealed)
+        if request is None:
+            return None
+        client = await self.get_client(request.client_id)
+        return None if client is None else (request, client)
 
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
@@ -522,12 +538,7 @@ class ConsentEndpoints:
         self.provider = provider
 
     async def _load(self, sealed: str) -> tuple[ConsentRequest, OAuthClientInformationFull] | None:
-        deps = self.provider.deps()
-        request = open_consent_request(deps.vault, sealed)
-        if request is None:
-            return None
-        client = await self.provider.get_client(request.client_id)
-        return None if client is None else (request, client)
+        return await self.provider.load_consent(sealed)
 
     def _render(
         self,
@@ -649,7 +660,7 @@ def oauth_routes(provider: AnveshaOAuthProvider, settings: Settings) -> list[Rou
     """The authorization server's endpoints, the resource metadata, and the consent page."""
     issuer = _url(settings.mcp_public_url or "")
     consent = ConsentEndpoints(provider)
-    return [
+    routes: list[Route] = [
         *create_auth_routes(
             provider,
             issuer_url=issuer,
@@ -661,9 +672,14 @@ def oauth_routes(provider: AnveshaOAuthProvider, settings: Settings) -> list[Rou
             authorization_servers=[issuer],
             resource_name="Anvesha",
         ),
-        Route(CONSENT_PATH, consent.show, methods=["GET"]),
-        Route(CONSENT_PATH, consent.decide, methods=["POST"]),
     ]
+    if settings.auth_mode == "local":
+        # Multi-user mode approves in the web app instead (anvesha.api.routers.oauth_consent).
+        routes += [
+            Route(CONSENT_PATH, consent.show, methods=["GET"]),
+            Route(CONSENT_PATH, consent.decide, methods=["POST"]),
+        ]
+    return routes
 
 
 # --- Connections: the clients a user approved ------------------------------------------

@@ -119,6 +119,8 @@ SourceServiceDep = Annotated[SourceService, Depends(get_source_service)]
 ToolsDep = Annotated[ToolRegistry, Depends(get_tools)]
 QueueDep = Annotated[JobQueue, Depends(get_queue)]
 BrokerDep = Annotated[RunEventBroker, Depends(get_broker)]
+
+
 def rate_limit(bucket: Bucket) -> Any:
     """A route dependency counting the request against a rate limit bucket."""
 
@@ -131,7 +133,6 @@ def rate_limit(bucket: Bucket) -> Any:
 def admin_principal(principal: PrincipalDep) -> Principal:
     require_role(principal, "admin")
     return principal
-
 
 
 # For changes to the workspace's shared setup (keys, models, members): admins and owners.

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
-from anvesha.api.deps import PrincipalDep, SessionDep, SettingsDep, VaultDep
+from anvesha.api.deps import AdminDep, PrincipalDep, SessionDep, SettingsDep, VaultDep
 from anvesha.api.schemas.llm import ModelPreferenceRead, ModelPreferenceWrite
 from anvesha.db.models import ModelPreference
 from anvesha.llm.catalog import get_provider
@@ -34,7 +34,7 @@ async def set_model_preference(
     role: ModelRole,
     payload: ModelPreferenceWrite,
     session: SessionDep,
-    principal: PrincipalDep,
+    principal: AdminDep,
     settings: SettingsDep,
     vault: VaultDep,
 ) -> ModelPreferenceRead:
@@ -66,7 +66,7 @@ async def set_model_preference(
 
 @router.delete("/{role}", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_model_preference(
-    role: ModelRole, session: SessionDep, principal: PrincipalDep
+    role: ModelRole, session: SessionDep, principal: AdminDep
 ) -> Response:
     preference = await session.get(ModelPreference, (principal.workspace_id, role))
     if preference is not None:

@@ -19,6 +19,7 @@ from anvesha.api.deps import (
     SourceServiceDep,
     ToolsDep,
     VaultDep,
+    rate_limit,
 )
 from anvesha.api.schemas.chat import (
     ChatExchange,
@@ -130,6 +131,7 @@ async def delete_chat(
     "/chats/{thread_id}/messages",
     response_model=ChatExchange,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[rate_limit("chat")],
 )
 async def send_message(
     thread_id: uuid.UUID,

@@ -35,6 +35,28 @@ class CredentialSaved(ProviderRead):
     models: list[str]
 
 
+class OAuthStartRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    callback_url: str = Field(
+        min_length=1,
+        max_length=2048,
+        description="Where the provider sends the user back (a page of the web app).",
+    )
+
+
+class OAuthStartResponse(BaseModel):
+    authorization_url: str = Field(description="Send the user here.")
+    state: str = Field(description="Keep this (e.g. in session storage) for the callback.")
+
+
+class OAuthComplete(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    code: str = Field(min_length=1, max_length=2000)
+    state: str = Field(min_length=1, max_length=4000)
+
+
 class ModelPreferenceWrite(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 

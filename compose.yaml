@@ -7,9 +7,10 @@
 # web (the web app; it forwards the browser's API calls to the api service), and
 # mcp-public (optional, `--profile public`: MCP and OAuth sign-in for internet clients).
 #
-# Single-user mode: anyone who can open the web app or API can use it. Both are
-# published on localhost only; don't expose them to a network until multi-user
-# auth arrives.
+# Single-user mode (the default): anyone who can open the web app or API can use it.
+# Both are published on localhost only. For several people, turn on sign-in with
+# ANVESHA_AUTH_MODE=jwt (see .env.example): the web app then asks everyone to sign in,
+# and the API only accepts requests the web app signed for a user.
 
 name: anvesha
 
@@ -17,6 +18,14 @@ x-backend-env: &backend-env
   ANVESHA_ENV: ${ANVESHA_ENV:-production}
   ANVESHA_DATABASE_URL: postgresql+asyncpg://anvesha:${POSTGRES_PASSWORD:-anvesha}@postgres:5432/anvesha
   ANVESHA_CORS_ORIGINS: ${ANVESHA_CORS_ORIGINS:-http://localhost:3000}
+  # Sign-in: "local" (single user, no sign-in) or "jwt" (accounts, via the web app).
+  ANVESHA_AUTH_MODE: ${ANVESHA_AUTH_MODE:-local}
+  # The web app's public address: invitation links, sign-in, and the JWT issuer.
+  ANVESHA_WEB_URL: ${ANVESHA_WEB_URL:-http://localhost:3000}
+  ANVESHA_AUTH_ISSUER: ${ANVESHA_WEB_URL:-http://localhost:3000}
+  ANVESHA_AUTH_JWKS_URL: http://web:3000/api/auth/jwks
+  # Rate limits on expensive requests. Empty: on with sign-in, off in single-user mode.
+  ANVESHA_RATE_LIMITS_ENABLED: ${ANVESHA_RATE_LIMITS_ENABLED:-}
   # Master key for encrypting stored API keys. Leave unset to auto-generate one into the
   # anvesha-secrets volume on first start (back that volume up, or set this explicitly).
   ANVESHA_SECRET_KEY: ${ANVESHA_SECRET_KEY:-}
@@ -180,6 +189,17 @@ services:
     environment:
       # Where the web app's server forwards /api/v1 requests (never exposed to browsers).
       ANVESHA_API_URL: http://api:8000
+      # Sign-in (only used with ANVESHA_AUTH_MODE=jwt). Accounts live in the "auth"
+      # schema of the same database.
+      ANVESHA_AUTH_MODE: ${ANVESHA_AUTH_MODE:-local}
+      BETTER_AUTH_URL: ${ANVESHA_WEB_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      ANVESHA_AUTH_DATABASE_URL: postgresql://anvesha:${POSTGRES_PASSWORD:-anvesha}@postgres:5432/anvesha
+      ANVESHA_AUTH_DISABLE_SIGNUP: ${ANVESHA_AUTH_DISABLE_SIGNUP:-false}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
